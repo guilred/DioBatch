@@ -1,26 +1,58 @@
 ﻿using Microsoft.Xna.Framework;
+namespace DioBatch;
 public struct PaintStyle {
-    public enum PaintType : byte { Solid, Linear, Radial }
+    public enum PaintType : byte { Solid, Linear, Radial, Texture }
+    public enum EasingType : byte { Linear, EaseIn, EaseOut, EaseInOut }
     public PaintType Type;
+    public EasingType Easing;
+    public float EasingPower;
     public Color ColorA;
     public Color ColorB;
-    public Vector4 Points; // xy = Start, zw = End
+    public Vector2 Start;
+    public Vector2 End;
     public bool IsLocal;
+    public float OffsetsA;
+    public float OffsetsB;
     public static PaintStyle Solid(Color color) => new() { Type = PaintType.Solid, ColorA = color };
+    public static PaintStyle Linear(Vector2 start, Vector2 end, Color startColor, Color endColor, bool isLocal = true) {
+        return new PaintStyle() {
+            Type = PaintType.Linear,
+            ColorA = startColor,
+            ColorB = endColor,
+            Start = start,
+            End = end,
+            IsLocal = isLocal,
+            OffsetsB = 1f
+        };
+    }
 
-    public static PaintStyle Linear(Vector2 start, Vector2 end, Color startColor, Color endColor, bool isLocal = false) => new() {
-        Type = PaintType.Linear,
-        ColorA = startColor,
-        ColorB = endColor,
-        Points = new Vector4(start.X, start.Y, end.X, end.Y),
-        IsLocal = isLocal
-    };
-
-    public static PaintStyle Radial(Vector2 center, Vector2 edge, Color centerColor, Color edgeColor, bool isLocal = false) => new() {
-        Type = PaintType.Radial,
-        ColorA = centerColor,
-        ColorB = edgeColor,
-        Points = new Vector4(center.X, center.Y, edge.X, edge.Y),
-        IsLocal = isLocal
-    };
+    public static PaintStyle Radial(Vector2 center, Vector2 edge, Color centerColor, Color edgeColor, bool isLocal = true) {
+        return new PaintStyle() {
+            Type = PaintType.Radial,
+            ColorA = centerColor,
+            ColorB = edgeColor,
+            Start = center,
+            End = edge,
+            IsLocal = isLocal,
+            OffsetsB = 1f
+        };
+    }
+    public PaintStyle SetOffsets(float offsetA = 0f, float offsetB = 1f, bool usePixelOffsets = false) {
+        if (!usePixelOffsets) {
+            (OffsetsA, OffsetsB) = (offsetA, offsetB);
+            return this;
+        }
+        float distance = Vector2.Distance(Start, End);
+        if (distance > 0.0001f) {
+            (OffsetsA, OffsetsB) = (offsetA / distance, offsetB / distance);
+            return this;
+        }
+        (OffsetsA, OffsetsB) = (0f, 1f);
+        return this;
+    }
+    public PaintStyle SetEasing(EasingType easing = EasingType.Linear, float power = 2f) {
+        Easing = easing;
+        EasingPower = power;
+        return this;
+    }
 }

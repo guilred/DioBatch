@@ -18,6 +18,10 @@ public class DioBatch {
     private readonly Effect _effect;
     private readonly EffectPass _pass;
     private readonly EffectParameter _projectionParam;
+    private BlendState _previousBlendState = BlendState.AlphaBlend;
+    private SamplerState _previousSamplerState = SamplerState.LinearClamp;
+    private BlendState _currentBlendState = BlendState.AlphaBlend;
+    private SamplerState _currentSamplerState = SamplerState.LinearClamp;
 
     private readonly Texture2D?[] _textures = new Texture2D[8];
     private int _textureCount = 0;
@@ -45,7 +49,7 @@ public class DioBatch {
         _indices = new short[_maxIndices];
     }
 
-    public void Begin(Matrix? view = null, Matrix? projection = null) {
+    public void Begin(Matrix? view = null, Matrix? projection = null, BlendState? blendState = null, SamplerState? samplerState = null) {
         if (_begun) throw new InvalidOperationException("DioBatch is already begun.");
 
         projection = (view ?? Matrix.Identity) * (projection ?? Matrix.CreateOrthographicOffCenter(0, _device.Viewport.Width, _device.Viewport.Height, 0, 0f, 1f));
@@ -53,6 +57,10 @@ public class DioBatch {
         _projectionParam.SetValue(projection.Value);
         _vertexCount = 0;
         _indexCount = 0;
+        _currentBlendState = blendState ?? BlendState.AlphaBlend;
+        _currentSamplerState = samplerState ?? SamplerState.LinearClamp;
+        _previousBlendState = _device.BlendState;
+        _previousSamplerState = _device.SamplerStates[0];
         _begun = true;
     }
 
@@ -60,6 +68,8 @@ public class DioBatch {
         if (!_begun) throw new InvalidOperationException("DioBatch has not been begun.");
 
         flush();
+        _device.BlendState = _previousBlendState;
+        _device.SamplerStates[0] = _previousSamplerState;
         _begun = false;
     }
 
@@ -71,12 +81,12 @@ public class DioBatch {
 
         _device.SetVertexBuffer(_vertexBuffer);
         _device.Indices = _indexBuffer;
-        _device.BlendState = BlendState.AlphaBlend;
+        _device.BlendState = _currentBlendState;
 
         _pass.Apply();
         for (int i = 0; i < _textureCount; i++) {
             _device.Textures[i] = _textures[i];
-            _device.SamplerStates[i] = SamplerState.PointClamp; //will add var later im asleeeeeeeeep
+            _device.SamplerStates[i] = _currentSamplerState;
         }
 
 
@@ -309,11 +319,13 @@ public class DioBatch {
     public void DrawCircle(Vector2 center, float radius, PaintStyle fillPaint, float borderThickness, PaintStyle borderPaint, int segments = 32) {
         float innerRadius = Math.Max(0, radius - borderThickness);
 
-        if (innerRadius > 0 && fillPaint.ColorA.A > 0) {
+        if (innerRadius > 0) {
+            fillPaint = transformPaint(fillPaint, center, Vector2.Zero, 0f);
             addRingSegment(center, 0, innerRadius, 0, MathHelper.TwoPi, fillPaint, segments);
         }
 
         if (borderThickness > 0 && borderPaint.ColorA.A > 0) {
+            borderPaint = transformPaint(borderPaint, center, Vector2.Zero, 0f);
             addRingSegment(center, innerRadius, radius, 0, MathHelper.TwoPi, borderPaint, segments);
         }
     }
@@ -475,8 +487,8 @@ public class DioBatch {
         if (!paint.IsLocal || paint.Type == PaintStyle.PaintType.Solid)
             return paint;
 
-        Vector2 p1 = new Vector2(paint.Points.X, paint.Points.Y) + offset;
-        Vector2 p2 = new Vector2(paint.Points.Z, paint.Points.W) + offset;
+        Vector2 p1 = new Vector2(paint.Start.X, paint.Start.Y) + offset;
+        Vector2 p2 = new Vector2(paint.End.X, paint.End.X) + offset;
 
         if (rotation != 0f) {
             var (sin, cos) = MathF.SinCos(rotation);
@@ -491,7 +503,8 @@ public class DioBatch {
         p1 += center;
         p2 += center;
 
-        paint.Points = new Vector4(p1.X, p1.Y, p2.X, p2.Y);
+        paint.Start = new Vector2(p1.X, p1.Y);
+        paint.End = new Vector2(p2.X, p2.Y);
         return paint;
     }
 
@@ -589,7 +602,7 @@ public class DioBatch {
         public Vector4 ColorA;
         public Vector4 ColorB;
         public Vector4 GradientData;
-        public float PaintType;
+        public Vector3 PaintParams;
 
         public static readonly VertexDeclaration VertexDeclaration = new(
             new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0),
@@ -598,7 +611,7 @@ public class DioBatch {
             new VertexElement(36, VertexElementFormat.Vector4, VertexElementUsage.Color, 0),
             new VertexElement(52, VertexElementFormat.Vector4, VertexElementUsage.Color, 1),
             new VertexElement(68, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 2),
-            new VertexElement(84, VertexElementFormat.Single, VertexElementUsage.TextureCoordinate, 3)
+            new VertexElement(84, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 3)
         );
 
         public PrimitiveVertex(Vector3 pos, PaintStyle paint, Vector4 clipRect, Vector2 clipParams) {
@@ -607,8 +620,10 @@ public class DioBatch {
             ClipParams = clipParams;
             ColorA = paint.ColorA.ToVector4();
             ColorB = paint.ColorB.ToVector4();
-            GradientData = paint.Points;
-            PaintType = (float)paint.Type;
+            GradientData = new(paint.Start.X, paint.Start.Y, paint.End.X, paint.End.Y);
+            float safePower = Math.Clamp(paint.EasingPower, 0f, 99.9f);
+            float packedData = ((float)paint.Type * 1000f) + ((float)paint.Easing * 100f) + safePower;
+            PaintParams = new Vector3(paint.OffsetsA, paint.OffsetsB, packedData);
         }
 
         public PrimitiveVertex(Vector3 pos, Vector4 gradientData, Color tint, float paintType, Vector4 clipRect, Vector2 clipParams) {
@@ -618,7 +633,7 @@ public class DioBatch {
             ColorA = tint.ToVector4();
             ColorB = Vector4.Zero;
             GradientData = gradientData;
-            PaintType = paintType;
+            PaintParams = new Vector3(0f, 0f, paintType * 1000f);
         }
 
         readonly VertexDeclaration IVertexType.VertexDeclaration => VertexDeclaration;

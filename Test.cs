@@ -53,30 +53,22 @@ public class Test : Game {
         GraphicsDevice.Clear(Color.CornflowerBlue);
 
         var wave = float.Pow(float.Sin((float)gameTime.TotalGameTime.TotalSeconds * 0.5f * float.Pi), 2);
-
-        _dioBatch.Begin();
+        var mpos = Mouse.GetState().Position.ToVector2();
         //_dioBatch.DrawRectangle(Vector2.One * 100, Vector2.One * 200, Color.Red, new(Vector2.One * 110, Vector2.One * 100), s, float.Pi / 6);
         //_dioBatch.DrawCircle(new(300), 200, Color.Green, 20, Color.Blue, 64);
         //_dioBatch.DrawArc(new(400), 100, 50, 0, float.Pi, Color.Green, Color.Blue, s);
         //_dioBatch.DrawRectangle(new(400), new(300), 50, Color.Green, s, Color.Blue);
-        var ps1 = PaintStyle.Linear(new(0), new(500), Color.Blue, Color.Magenta, true);
-        var ps2 = PaintStyle.Linear(new(0), new(500), Color.Magenta, Color.Blue, true);
-        for (int j = 0; j < 50; j++) {
-            _dioBatch.DrawRectangle(new(100), new(500), 40, ps1, 20, ps2, float.Pi / 4, new(250), 8);
-        }
-        int i = 0;
-        int s = 100;
-        _dioBatch.DrawTexture(_aaa , new(100 + i, 100 + i), new(500), radius: 100);
-        i += s;
-        _dioBatch.DrawTexture(_ab , new(100 + i, 100 + i), new(500));
-        i += s;
-        _dioBatch.DrawTexture(_bgr , new(100 + i, 100 + i), new(500));
-        i += s;
-        _dioBatch.DrawTexture(_dw , new(100 + i, 100 + i), new(500));
-        i += s;
-        _dioBatch.DrawTexture(_h , new(100 + i, 100 + i), new(500));
-        i += s;
-        _dioBatch.DrawTexture(_ummm, new(100 + i, 100 + i), new(500));
+        //_dioBatch.FillRectangle(new(100), new(500), 40, Color.Green);
+        //_dioBatch.Begin();
+        //for (int j = 0; j < 100; j++) {
+        //}
+        //_dioBatch.End();
+        float _angle = (float)gameTime.TotalGameTime.TotalSeconds * 2;
+
+        _dioBatch.Begin();
+        var ps1 = PaintStyle.Radial(new(0, 0), new(250, 0), Color.Magenta, Color.Blue, true).SetEasing(PaintStyle.EasingType.EaseOut, power: 0.5f);
+        _dioBatch.DrawCircle(mpos, 250, ps1, 3, PaintStyle.Solid(Color.Black), segments: 64);
+        _dioBatch.DrawCircle(mpos + Vector2.One * 100, 250, ps1, 3, PaintStyle.Solid(Color.Black), segments: 64);
         _dioBatch.End();
 
         base.Draw(gameTime);
