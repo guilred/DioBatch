@@ -71,6 +71,8 @@ public class DioBatch {
         _device.BlendState = _previousBlendState;
         _device.SamplerStates[0] = _previousSamplerState;
         _begun = false;
+        _clipStack.Clear();
+        _currentClip = new ClipState { Rect = Vector4.Zero, Params = Vector2.Zero };
     }
 
     private void flush() {
@@ -488,7 +490,7 @@ public class DioBatch {
             return paint;
 
         Vector2 p1 = new Vector2(paint.Start.X, paint.Start.Y) + offset;
-        Vector2 p2 = new Vector2(paint.End.X, paint.End.X) + offset;
+        Vector2 p2 = new Vector2(paint.End.X, paint.End.Y) + offset;
 
         if (rotation != 0f) {
             var (sin, cos) = MathF.SinCos(rotation);
