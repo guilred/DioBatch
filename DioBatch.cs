@@ -1,5 +1,4 @@
-﻿// DioBatch.cs
-using DioUI.RectangleFNS;
+﻿using DioUI.RectangleFNS;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
