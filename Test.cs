@@ -103,7 +103,8 @@ public class Test : Game {
             var start = sunCenter + Vector2.Rotate(Vector2.UnitX * (360 - 30 * wave), angle);
             var bladeLenght = 200 - 30 * float.Sin(float.Tau * t + time * 2);
             var end = sunCenter + Vector2.Rotate(Vector2.UnitX * (320 + bladeLenght), angle);
-            _dioBatch.DrawLine(start, end, 50, Color.Yellow);
+            var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitX * bladeLenght, Color.Yellow, Color.LightYellow).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
+            _dioBatch.DrawLine(start, end, 50, ps);
         }
 
         for (int j = 0; j < 6; j++) {
@@ -124,7 +125,7 @@ public class Test : Game {
         if (wave > 0.5f)
             _dioBatch.BorderRectangle(clipRect.Position, clipRect.Size, 50, 2, Color.Black, clipRot, clipRect.Size / 2);
 
-        _dioBatch.End();
+        _dioBatch.End(); // ONE SINGLE DRAW CALL
 
         base.Draw(gameTime);
     }

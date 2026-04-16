@@ -18,10 +18,9 @@ public class DioBatch {
     private readonly Effect _effect;
     private readonly EffectPass _pass;
     private readonly EffectParameter _projectionParam;
-    private BlendState _previousBlendState = BlendState.AlphaBlend;
-    private SamplerState _previousSamplerState = SamplerState.LinearClamp;
     private BlendState _currentBlendState = BlendState.AlphaBlend;
     private SamplerState _currentSamplerState = SamplerState.LinearClamp;
+    private SamplerState[] _prevSamplerStatesBuffer = new SamplerState[8];
 
     private readonly Texture2D?[] _textures = new Texture2D[8];
     private int _textureCount = 0;
@@ -59,8 +58,6 @@ public class DioBatch {
         _indexCount = 0;
         _currentBlendState = blendState ?? BlendState.AlphaBlend;
         _currentSamplerState = samplerState ?? SamplerState.LinearClamp;
-        _previousBlendState = _device.BlendState;
-        _previousSamplerState = _device.SamplerStates[0];
         _begun = true;
     }
 
@@ -68,8 +65,6 @@ public class DioBatch {
         if (!_begun) throw new InvalidOperationException("DioBatch has not been begun.");
 
         flush();
-        _device.BlendState = _previousBlendState;
-        _device.SamplerStates[0] = _previousSamplerState;
         _begun = false;
         _clipStack.Clear();
         _currentClip = new ClipState { Rect = Vector4.Zero, Params = Vector2.Zero };
@@ -83,11 +78,15 @@ public class DioBatch {
 
         _device.SetVertexBuffer(_vertexBuffer);
         _device.Indices = _indexBuffer;
+
+        var previousBlendState = _device.BlendState;
+
         _device.BlendState = _currentBlendState;
 
         _pass.Apply();
         for (int i = 0; i < _textureCount; i++) {
             _device.Textures[i] = _textures[i];
+            _prevSamplerStatesBuffer[i] = _device.SamplerStates[i];
             _device.SamplerStates[i] = _currentSamplerState;
         }
 
@@ -101,7 +100,9 @@ public class DioBatch {
 
         for (int i = 0; i < _textureCount; i++) {
             _textures[i] = null;
+            _device.SamplerStates[i] = _prevSamplerStatesBuffer[i];
         }
+        _device.BlendState = previousBlendState;
 
         _vertexCount = 0;
         _indexCount = 0;
