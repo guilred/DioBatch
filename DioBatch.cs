@@ -1,11 +1,11 @@
 ﻿// DioBatch.cs
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
+using DioUI.RectangleFNS;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
-using DioUI.RectangleFNS;
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace DioBatch;
 
@@ -20,7 +20,7 @@ public class DioBatch {
     private readonly EffectParameter _projectionParam;
     private BlendState _currentBlendState = BlendState.AlphaBlend;
     private SamplerState _currentSamplerState = SamplerState.LinearClamp;
-    private SamplerState[] _prevSamplerStatesBuffer = new SamplerState[8];
+    private readonly SamplerState[] _prevSamplerStatesBuffer = new SamplerState[8];
 
     private readonly Texture2D?[] _textures = new Texture2D[8];
     private int _textureCount = 0;
@@ -80,8 +80,10 @@ public class DioBatch {
         _device.Indices = _indexBuffer;
 
         var previousBlendState = _device.BlendState;
+        var previousRasterizerState = _device.RasterizerState;
 
         _device.BlendState = _currentBlendState;
+        _device.RasterizerState = RasterizerState.CullNone;
 
         _pass.Apply();
         for (int i = 0; i < _textureCount; i++) {
@@ -103,6 +105,7 @@ public class DioBatch {
             _device.SamplerStates[i] = _prevSamplerStatesBuffer[i];
         }
         _device.BlendState = previousBlendState;
+        _device.RasterizerState = previousRasterizerState;
 
         _vertexCount = 0;
         _indexCount = 0;
@@ -348,9 +351,6 @@ public class DioBatch {
     public void BorderCircle(Vector2 center, float radius, float borderThickness, Color borderColor, int segments = 32)
         => BorderCircle(center, radius, borderThickness, PaintStyle.Solid(borderColor), segments);
 
-
-    // ==================== RECTANGLE ====================
-
     public void DrawRectangle(Vector2 position, Vector2 size, float radius, PaintStyle fillPaint, float borderThickness, PaintStyle borderPaint, float rotation = 0f, Vector2 origin = default, int cornerSegments = 8) {
         if (size.X <= 0 || size.Y <= 0) return;
 
@@ -511,7 +511,7 @@ public class DioBatch {
         return paint;
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Vector2? size = null, Rectangle? sourceRect = null, Color? tint = null, float rotation = 0f, Vector2 origin = default, float radius = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Vector2? size = null, Rectangle? sourceRect = null, Color? tint = null, float rotation = 0f, Vector2 origin = default, SpriteEffects effects = SpriteEffects.None, float radius = 0f, int cornerSegments = 8) {
         Vector2 actualSize = size ?? new Vector2(texture.Width, texture.Height);
         if (actualSize.X <= 0 || actualSize.Y <= 0) return;
 
@@ -561,9 +561,16 @@ public class DioBatch {
         Vector2 uvMin = new(src.X / texture.Width, src.Y / texture.Height);
         Vector2 uvMax = new((src.X + src.Width) / texture.Width, (src.Y + src.Height) / texture.Height);
 
+        bool flipH = (effects & SpriteEffects.FlipHorizontally) != 0;
+        bool flipV = (effects & SpriteEffects.FlipVertically) != 0;
+
         Vector2 GetUV(Vector2 p) {
             float tx = (p.X - position.X) / actualSize.X;
             float ty = (p.Y - position.Y) / actualSize.Y;
+
+            if (flipH) tx = 1f - tx;
+            if (flipV) ty = 1f - ty;
+
             return new Vector2(
                 MathHelper.Lerp(uvMin.X, uvMax.X, tx),
                 MathHelper.Lerp(uvMin.Y, uvMax.Y, ty)
@@ -571,10 +578,10 @@ public class DioBatch {
         }
 
         int startIdx = _vertexCount;
-
         Vector2 centerPos = position + actualSize * 0.5f;
+
         _vertices[_vertexCount++] = new PrimitiveVertex(
-            new Vector3(Transform(centerPos), 0),
+            new Vector3(Transform(centerPos), 0f),
             new Vector4(GetUV(centerPos), texIndex, 0),
             actualTint, 3f, _currentClip.Rect, _currentClip.Params);
 
@@ -586,7 +593,7 @@ public class DioBatch {
                 Vector2 pos = outCenters[c] + new Vector2(cos, sin) * outR;
 
                 _vertices[_vertexCount++] = new PrimitiveVertex(
-                    new Vector3(Transform(pos), 0),
+                    new Vector3(Transform(pos), 0f),
                     new Vector4(GetUV(pos), texIndex, 0),
                     actualTint, 3f, _currentClip.Rect, _currentClip.Params);
 
@@ -596,6 +603,41 @@ public class DioBatch {
                 vertCounter++;
             }
         }
+    }
+
+    public void DrawTexture(Texture2D texture, Vector2 position, Color color, float radius = 0f, int cornerSegments = 8) {
+        DrawTexture(texture, position, null, null, color, 0f, default, SpriteEffects.None, radius, cornerSegments);
+    }
+
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Color color, float radius = 0f, int cornerSegments = 8) {
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), null, color, 0f, default, SpriteEffects.None, radius, cornerSegments);
+    }
+
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float radius = 0f, int cornerSegments = 8) {
+        Vector2 size = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
+        DrawTexture(texture, position, size, sourceRectangle, color, 0f, default, SpriteEffects.None, radius, cornerSegments);
+    }
+
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float radius = 0f, int cornerSegments = 8) {
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), sourceRectangle, color, 0f, default, SpriteEffects.None, radius, cornerSegments);
+    }
+
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, float scale, SpriteEffects effects, float radius = 0f, int cornerSegments = 8) {
+        Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
+        DrawTexture(texture, position, srcSize * scale, sourceRectangle, color, rotation, origin * scale, effects, radius, cornerSegments);
+    }
+
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float radius = 0f, int cornerSegments = 8) {
+        Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
+        DrawTexture(texture, position, srcSize * scale, sourceRectangle, color, rotation, origin * scale, effects, radius, cornerSegments);
+    }
+
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, SpriteEffects effects, float radius = 0f, int cornerSegments = 8) {
+        Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
+        Vector2 destSize = new(destinationRectangle.Width, destinationRectangle.Height);
+        Vector2 scale = new(destSize.X / srcSize.X, destSize.Y / srcSize.Y);
+
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), destSize, sourceRectangle, color, rotation, origin * scale, effects, radius, cornerSegments);
     }
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct PrimitiveVertex : IVertexType {
