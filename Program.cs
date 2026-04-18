@@ -1,2 +1,2 @@
-﻿using var game = new DioBatch.Test();
+﻿using var game = new DioUI.Test();
 game.Run();

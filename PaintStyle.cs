@@ -1,5 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
-namespace DioBatch;
+
+namespace DioUI;
+
 public struct PaintStyle {
     public enum PaintType : byte { Solid, Linear, Radial, Texture }
     public enum EasingType : byte { Linear, EaseIn, EaseOut, EaseInOut }
