@@ -33,6 +33,9 @@ public class DioBatch {
     private int _indexCount;
 
     private bool _begun;
+    // debugging
+    private double time;
+    private bool blink => double.Sin(time * 5) > 0;
     public DioBatch(GraphicsDevice device, ContentManager content) {
         _device = device;
 
@@ -58,6 +61,7 @@ public class DioBatch {
         _currentBlendState = blendState ?? BlendState.AlphaBlend;
         _currentSamplerState = samplerState ?? SamplerState.LinearClamp;
         _begun = true;
+        time += 1 / 60f;
     }
 
     public void End(bool maintainClipRects = false) {
@@ -174,7 +178,7 @@ public class DioBatch {
             _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(center, 0), paint, _currentClip.Rect, _currentClip.Params);
 
             for (int i = 0; i <= segments; i++) {
-                float angle = MathHelper.Lerp(startAngle, endAngle, (float)i / segments);
+                float angle = float.Lerp(startAngle, endAngle, (float)i / segments);
                 (float sin, float cos) = MathF.SinCos(angle);
                 Vector2 pos = center + new Vector2(cos, sin) * outerRadius;
 
@@ -192,7 +196,7 @@ public class DioBatch {
             int startIdx = _vertexCount;
 
             for (int i = 0; i <= segments; i++) {
-                float angle = MathHelper.Lerp(startAngle, endAngle, (float)i / segments);
+                float angle = float.Lerp(startAngle, endAngle, (float)i / segments);
                 (float sin, float cos) = MathF.SinCos(angle);
                 Vector2 dir = new(cos, sin);
 
@@ -216,125 +220,104 @@ public class DioBatch {
             }
         }
     }
-    public void DrawLine(Vector2 start, Vector2 end, PaintStyle paint, PaintStyle borderPaint, float thickness, float borderThickness, int capSegments = 8) {
-        if (thickness <= 0) return;
 
-        Vector2 dir = end - start;
-        float length = dir.Length();
-        float angle = MathF.Atan2(dir.Y, dir.X);
+    private void addRectFringe(Span<Vector2> centers, float radius, int cornerSegments, PaintStyle paint, bool outer, bool hasRotation, float rotSin, float rotCos, Vector2 pivot) {
+        int perimeterVerts = (cornerSegments + 1) * 4;
+        ensureCapacity(perimeterVerts * 2, perimeterVerts * 6);
 
-        Vector2 size = new(length + thickness, thickness);
+        float step = MathHelper.PiOver2 / cornerSegments;
+        int fringeStart = _vertexCount;
 
-        Vector2 origin = new(thickness * 0.5f, thickness * 0.5f);
-        Vector2 position = start - origin;
+        for (int c = 0; c < 4; c++) {
+            float startAngle = c * MathHelper.PiOver2;
+            for (int i = 0; i <= cornerSegments; i++) {
+                float angle = startAngle + i * step;
+                (float sin, float cos) = MathF.SinCos(angle);
+                Vector2 dir = new(cos, sin);
+                Vector2 basePos = centers[c] + dir * radius;
 
-        paint = transformPaint(paint, origin, Vector2.Zero, 0);
-        borderPaint = transformPaint(borderPaint, origin, Vector2.Zero, 0);
+                Vector2 worldBase, worldFringe;
+                if (hasRotation) {
+                    float rx = basePos.X - pivot.X, ry = basePos.Y - pivot.Y;
+                    worldBase = new Vector2(pivot.X + rx * rotCos - ry * rotSin, pivot.Y + rx * rotSin + ry * rotCos);
 
-        DrawRectangle(position, size, paint, borderPaint, borderThickness, rounding: thickness * 0.5f, angle, origin, capSegments);
-    }
+                    float wdx = dir.X * rotCos - dir.Y * rotSin;
+                    float wdy = dir.X * rotSin + dir.Y * rotCos;
+                    worldFringe = outer
+                        ? new Vector2(worldBase.X + wdx, worldBase.Y + wdy)
+                        : new Vector2(worldBase.X - wdx, worldBase.Y - wdy);
+                }
+                else {
+                    worldBase = basePos;
+                    worldFringe = outer ? basePos + dir : basePos - dir;
+                }
 
-    public void DrawLine(Vector2 start, Vector2 end, Color color, Color borderColor, float thickness, float borderThickness, int capSegments = 8)
-        => DrawLine(start, end, PaintStyle.Solid(color), PaintStyle.Solid(borderColor), thickness, borderThickness, capSegments);
+                _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(worldBase, 0), paint, _currentClip.Rect, _currentClip.Params);
 
-    public void FillLine(Vector2 start, Vector2 end, PaintStyle paint, float thickness, int capSegments = 8)
-        => DrawLine(start, end, paint, default, thickness, 0f, capSegments);
-
-    public void FillLine(Vector2 start, Vector2 end, Color color, float thickness, int capSegments = 8)
-        => FillLine(start, end, PaintStyle.Solid(color), thickness, capSegments);
-
-    public void BorderLine(Vector2 start, Vector2 end, PaintStyle borderPaint, float thickness, float borderThickness, int capSegments = 8)
-        => DrawLine(start, end, default, borderPaint, thickness, borderThickness, capSegments);
-
-    public void BorderLine(Vector2 start, Vector2 end, Color borderColor, float thickness, float borderThickness, int capSegments = 8)
-        => BorderLine(start, end, PaintStyle.Solid(borderColor), thickness, borderThickness, capSegments);
-
-    public void DrawArc(Vector2 center, PaintStyle fillPaint, PaintStyle borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 32) {
-        if (outerRadius < innerRadius) {
-            (innerRadius, outerRadius) = (outerRadius, innerRadius);
+                _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(worldFringe, 0), paint, _currentClip.Rect, _currentClip.Params) {
+                    ColorA = Vector4.Zero,
+                    ColorB = Vector4.Zero
+                };
+            }
         }
 
-        float thickness = outerRadius - innerRadius;
-        if (thickness <= 0 || segments < 3) return;
+        for (int k = 0; k < perimeterVerts; k++) {
+            int next = (k + 1) % perimeterVerts;
+            int v0 = fringeStart + k * 2;
+            int v1 = fringeStart + k * 2 + 1;
+            int v2 = fringeStart + next * 2;
+            int v3 = fringeStart + next * 2 + 1;
 
-        float midRadius = (innerRadius + outerRadius) * 0.5f;
-        float halfThick = thickness * 0.5f;
+            _indices[_indexCount++] = (short)v0;
+            _indices[_indexCount++] = (short)v1;
+            _indices[_indexCount++] = (short)v2;
 
-        float borderThick = Math.Min(borderThickness, halfThick);
-        float fillHalfThick = Math.Max(0, halfThick - borderThick);
-
-        bool hasBorder = borderThick > 0 && borderPaint.ColorA.A > 0;
-        bool hasFill = fillHalfThick > 0 && fillPaint.ColorA.A > 0;
-
-        if (!hasBorder && !hasFill) return;
-
-        fillPaint = transformPaint(fillPaint, center, Vector2.Zero, 0f);
-        borderPaint = transformPaint(borderPaint, center, Vector2.Zero, 0f);
-
-        Vector2 startCenter = center + new Vector2(MathF.Cos(startAngle), MathF.Sin(startAngle)) * midRadius;
-        Vector2 endCenter = center + new Vector2(MathF.Cos(endAngle), MathF.Sin(endAngle)) * midRadius;
-
-        int capSegments = Math.Max(3, segments / 4);
-
-        if (hasBorder) {
-            addRingSegment(center, midRadius + fillHalfThick, midRadius + halfThick, startAngle, endAngle, borderPaint, segments);
-            addRingSegment(center, midRadius - halfThick, midRadius - fillHalfThick, startAngle, endAngle, borderPaint, segments);
-            addRingSegment(startCenter, fillHalfThick, halfThick, startAngle + MathHelper.Pi, startAngle + MathHelper.TwoPi, borderPaint, capSegments);
-            addRingSegment(endCenter, fillHalfThick, halfThick, endAngle, endAngle + MathHelper.Pi, borderPaint, capSegments);
-        }
-
-        if (hasFill) {
-            addRingSegment(center, midRadius - fillHalfThick, midRadius + fillHalfThick, startAngle, endAngle, fillPaint, segments);
-            addRingSegment(startCenter, 0, fillHalfThick, startAngle + MathHelper.Pi, startAngle + MathHelper.TwoPi, fillPaint, capSegments);
-            addRingSegment(endCenter, 0, fillHalfThick, endAngle, endAngle + MathHelper.Pi, fillPaint, capSegments);
+            _indices[_indexCount++] = (short)v1;
+            _indices[_indexCount++] = (short)v3;
+            _indices[_indexCount++] = (short)v2;
         }
     }
 
-    public void DrawArc(Vector2 center, Color fillColor, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 32)
-    => DrawArc(center, PaintStyle.Solid(fillColor), PaintStyle.Solid(borderColor), innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments);
+    private void addCircleFringe(Vector2 center, float radius, float startAngle, float endAngle,
+        PaintStyle paint, int segments, bool outer) {
+        if (segments < 1 || radius <= 0f) return;
 
-    public void FillArc(Vector2 center, PaintStyle fillPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, int segments = 32)
-        => DrawArc(center, fillPaint, default, innerRadius, outerRadius, startAngle, endAngle, 0f, segments);
+        float fringeRadius = outer ? radius + 1f : Math.Max(0f, radius - 1f);
+        if (!outer && fringeRadius >= radius) return;
 
-    public void FillArc(Vector2 center, Color fillColor, float innerRadius, float outerRadius, float startAngle, float endAngle, int segments = 32)
-        => FillArc(center, PaintStyle.Solid(fillColor), innerRadius, outerRadius, startAngle, endAngle, segments);
+        ensureCapacity((segments + 1) * 2, segments * 6);
+        int fringeStart = _vertexCount;
 
-    public void BorderArc(Vector2 center, PaintStyle borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 32)
-        => DrawArc(center, default, borderPaint, innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments);
+        for (int i = 0; i <= segments; i++) {
+            float angle = float.Lerp(startAngle, endAngle, (float)i / segments);
+            (float sin, float cos) = MathF.SinCos(angle);
+            Vector2 dir = new(cos, sin);
 
-    public void BorderArc(Vector2 center, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 32)
-        => BorderArc(center, PaintStyle.Solid(borderColor), innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments);
+            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(center + dir * radius, 0), paint, _currentClip.Rect, _currentClip.Params);
 
-    public void DrawCircle(Vector2 center, PaintStyle fillPaint, PaintStyle borderPaint, float radius, float borderThickness, int segments = 32) {
-        float innerRadius = Math.Max(0, radius - borderThickness);
-
-        if (innerRadius > 0) {
-            fillPaint = transformPaint(fillPaint, center, Vector2.Zero, 0f);
-            addRingSegment(center, 0, innerRadius, 0, MathHelper.TwoPi, fillPaint, segments);
+            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(center + dir * fringeRadius, 0), paint, _currentClip.Rect, _currentClip.Params) {
+                ColorA = Vector4.Zero,
+                ColorB = Vector4.Zero
+            };
         }
 
-        if (borderThickness > 0 && borderPaint.ColorA.A > 0) {
-            borderPaint = transformPaint(borderPaint, center, Vector2.Zero, 0f);
-            addRingSegment(center, innerRadius, radius, 0, MathHelper.TwoPi, borderPaint, segments);
+        for (int i = 0; i < segments; i++) {
+            int v0 = fringeStart + i * 2;
+            int v1 = fringeStart + i * 2 + 1;
+            int v2 = fringeStart + (i + 1) * 2;
+            int v3 = fringeStart + (i + 1) * 2 + 1;
+
+            _indices[_indexCount++] = (short)v0;
+            _indices[_indexCount++] = (short)v1;
+            _indices[_indexCount++] = (short)v2;
+
+            _indices[_indexCount++] = (short)v1;
+            _indices[_indexCount++] = (short)v3;
+            _indices[_indexCount++] = (short)v2;
         }
     }
 
-    public void DrawCircle(Vector2 center, Color fillColor, Color borderColor, float radius, float borderThickness, int segments = 32)
-        => DrawCircle(center, PaintStyle.Solid(fillColor), PaintStyle.Solid(borderColor), radius, borderThickness, segments);
-
-    public void FillCircle(Vector2 center, PaintStyle fillPaint, float radius, int segments = 32)
-        => DrawCircle(center, fillPaint, default, radius, 0f, segments);
-
-    public void FillCircle(Vector2 center, Color fillColor, float radius, int segments = 32)
-        => FillCircle(center, PaintStyle.Solid(fillColor), radius, segments);
-
-    public void BorderCircle(Vector2 center, PaintStyle borderPaint, float radius, float borderThickness, int segments = 32)
-        => DrawCircle(center, default, borderPaint, radius, borderThickness, segments);
-
-    public void BorderCircle(Vector2 center, Color borderColor, float radius, float borderThickness, int segments = 32)
-        => BorderCircle(center, PaintStyle.Solid(borderColor), radius, borderThickness, segments);
-
-    public void DrawRectangle(Vector2 position, Vector2 size, PaintStyle fillPaint, PaintStyle borderPaint, float borderThickness, float rounding, float rotation = 0f, Vector2 origin = default, int cornerSegments = 8) {
+    public void DrawRectangle(Vector2 position, Vector2 size, PaintStyle fillPaint, PaintStyle borderPaint, float borderThickness, float rounding, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true) {
         if (size.X <= 0 || size.Y <= 0) return;
 
 
@@ -345,8 +328,8 @@ public class DioBatch {
         rounding = Math.Clamp(rounding, 0, minHalf);
         borderThickness = Math.Clamp(borderThickness, 0, minHalf);
 
-        bool hasBorder = borderThickness > 0 && borderPaint.ColorA.A > 0;
-        bool hasFill = fillPaint.ColorA.A > 0 && borderThickness < minHalf;
+        bool hasBorder = borderThickness > 0;
+        bool hasFill = borderThickness < minHalf;
 
         if (!hasBorder && !hasFill) return;
 
@@ -373,7 +356,7 @@ public class DioBatch {
             inCenters[3] = inPos + new Vector2(inSize.X - inR, inR);
         }
 
-        Span<float> startAngles = [0, MathHelper.PiOver2, MathHelper.Pi, MathHelper.Pi * 1.5f];
+        Span<float> startAngles = [0, MathHelper.PiOver2, float.Pi, float.Pi * 1.5f];
         float step = MathHelper.PiOver2 / cornerSegments;
 
         float rotSin = 0, rotCos = 1;
@@ -453,22 +436,200 @@ public class DioBatch {
                 }
             }
         }
+
+        if (!enableAA) return;
+
+        Vector2 aaPivot = position + origin;
+
+        if (hasBorder) {
+            addRectFringe(outCenters, outR, cornerSegments, borderPaint, true, hasRotation, rotSin, rotCos, aaPivot);
+            bool bpOp = borderPaint.IsOpaque();
+            if (bpOp) {
+                addRectFringe(inCenters, inR, cornerSegments, borderPaint, false, hasRotation, rotSin, rotCos, aaPivot);
+            }
+            if (!bpOp && fillPaint.IsOpaque()) {
+                addRectFringe(inCenters, inR, cornerSegments, fillPaint, true, hasRotation, rotSin, rotCos, aaPivot);
+            }
+        }
+        else {
+            addRectFringe(outCenters, outR, cornerSegments, fillPaint, true, hasRotation, rotSin, rotCos, aaPivot);
+        }
+        
     }
 
-    public void DrawRectangle(Vector2 position, Vector2 size, Color fillColor, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 8)
-    => DrawRectangle(position, size, PaintStyle.Solid(fillColor), PaintStyle.Solid(borderColor), borderThickness, rounding, rotation, origin, cornerSegments);
+    public void DrawRectangle(Vector2 position, Vector2 size, Color fillColor, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
+        => DrawRectangle(position, size, PaintStyle.Solid(fillColor), PaintStyle.Solid(borderColor), borderThickness, rounding, rotation, origin, cornerSegments, enableAA);
 
-    public void FillRectangle(Vector2 position, Vector2 size, PaintStyle fillPaint, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 8)
-        => DrawRectangle(position, size, fillPaint, default, 0, rounding, rotation, origin, cornerSegments);
+    public void FillRectangle(Vector2 position, Vector2 size, PaintStyle fillPaint, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
+        => DrawRectangle(position, size, fillPaint, default, 0, rounding, rotation, origin, cornerSegments, enableAA);
 
-    public void FillRectangle(Vector2 position, Vector2 size, Color fillColor, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 8)
-        => FillRectangle(position, size, PaintStyle.Solid(fillColor), rounding, rotation, origin, cornerSegments);
+    public void FillRectangle(Vector2 position, Vector2 size, Color fillColor, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
+        => FillRectangle(position, size, PaintStyle.Solid(fillColor), rounding, rotation, origin, cornerSegments, enableAA);
 
-    public void BorderRectangle(Vector2 position, Vector2 size, PaintStyle borderPaint, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 8)
-        => DrawRectangle(position, size, default, borderPaint, borderThickness, rounding, rotation, origin, cornerSegments);
+    public void BorderRectangle(Vector2 position, Vector2 size, PaintStyle borderPaint, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
+        => DrawRectangle(position, size, default, borderPaint, borderThickness, rounding, rotation, origin, cornerSegments, enableAA);
 
-    public void BorderRectangle(Vector2 position, Vector2 size, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 8)
-        => BorderRectangle(position, size, PaintStyle.Solid(borderColor), borderThickness, rounding, rotation, origin, cornerSegments);
+    public void BorderRectangle(Vector2 position, Vector2 size, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
+        => BorderRectangle(position, size, PaintStyle.Solid(borderColor), borderThickness, rounding, rotation, origin, cornerSegments, enableAA);
+
+    public void DrawLine(Vector2 start, Vector2 end, PaintStyle paint, PaintStyle borderPaint, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true) {
+        if (thickness <= 0) return;
+
+        Vector2 dir = end - start;
+        float length = dir.Length();
+        float angle = MathF.Atan2(dir.Y, dir.X);
+
+        Vector2 size = new(length + thickness, thickness);
+
+        Vector2 origin = new(thickness * 0.5f, thickness * 0.5f);
+        Vector2 position = start - origin;
+
+        paint = transformPaint(paint, origin, Vector2.Zero, 0);
+        borderPaint = transformPaint(borderPaint, origin, Vector2.Zero, 0);
+
+        DrawRectangle(position, size, paint, borderPaint, borderThickness, rounding: thickness * 0.5f, angle, origin, capSegments, enableAA);
+    }
+
+    public void DrawLine(Vector2 start, Vector2 end, Color color, Color borderColor, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true)
+        => DrawLine(start, end, PaintStyle.Solid(color), PaintStyle.Solid(borderColor), thickness, borderThickness, capSegments, enableAA);
+
+    public void FillLine(Vector2 start, Vector2 end, PaintStyle paint, float thickness, int capSegments = 8, bool enableAA = true)
+        => DrawLine(start, end, paint, default, thickness, 0f, capSegments, enableAA);
+
+    public void FillLine(Vector2 start, Vector2 end, Color color, float thickness, int capSegments = 8, bool enableAA = true)
+        => FillLine(start, end, PaintStyle.Solid(color), thickness, capSegments, enableAA);
+
+    public void BorderLine(Vector2 start, Vector2 end, PaintStyle borderPaint, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true)
+        => DrawLine(start, end, default, borderPaint, thickness, borderThickness, capSegments, enableAA);
+
+    public void BorderLine(Vector2 start, Vector2 end, Color borderColor, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true)
+        => BorderLine(start, end, PaintStyle.Solid(borderColor), thickness, borderThickness, capSegments, enableAA);
+
+    public void DrawArc(Vector2 center, PaintStyle fillPaint, PaintStyle borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true) {
+        if (outerRadius < innerRadius) {
+            (innerRadius, outerRadius) = (outerRadius, innerRadius);
+        }
+
+        float thickness = outerRadius - innerRadius;
+        if (thickness <= 0 || segments < 3) return;
+
+        float midRadius = (innerRadius + outerRadius) * 0.5f;
+        float halfThick = thickness * 0.5f;
+
+        float borderThick = Math.Min(borderThickness, halfThick);
+        float fillHalfThick = Math.Max(0, halfThick - borderThick);
+
+        bool hasBorder = borderThick > 0 && borderPaint.ColorA.A > 0;
+        bool hasFill = fillHalfThick > 0 && fillPaint.ColorA.A > 0;
+
+        if (!hasBorder && !hasFill) return;
+
+        float totalRadius = innerRadius + outerRadius;
+        fillPaint = transformPaint(fillPaint, center, -Vector2.One * totalRadius, 0f);
+        borderPaint = transformPaint(borderPaint, center, -Vector2.One * totalRadius, 0f);
+
+        Vector2 startCenter = center + new Vector2(MathF.Cos(startAngle), MathF.Sin(startAngle)) * midRadius;
+        Vector2 endCenter = center + new Vector2(MathF.Cos(endAngle), MathF.Sin(endAngle)) * midRadius;
+
+        int capSegments = Math.Max(3, segments / 4);
+
+        bool fpOp = fillPaint.IsOpaque();
+        if (hasBorder) {
+            if (enableAA) {
+                addCircleFringe(center, midRadius + halfThick, startAngle, endAngle, borderPaint, segments, true);
+                addCircleFringe(center, midRadius - halfThick, startAngle, endAngle, borderPaint, segments, false);
+                addCircleFringe(startCenter, halfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments, true);
+                addCircleFringe(endCenter, halfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments, true);
+                if (!fpOp && borderPaint.IsOpaque()) {
+                    addCircleFringe(center, midRadius - fillHalfThick, startAngle, endAngle, borderPaint, segments, true);
+                    addCircleFringe(center, midRadius + fillHalfThick, startAngle, endAngle, borderPaint, segments, false);
+                    addCircleFringe(startCenter, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments, false);
+                    addCircleFringe(endCenter, fillHalfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments, false);
+                }
+            }
+            addRingSegment(center, midRadius + fillHalfThick, midRadius + halfThick, startAngle, endAngle, borderPaint, segments);
+            addRingSegment(center, midRadius - halfThick, midRadius - fillHalfThick, startAngle, endAngle, borderPaint, segments);
+            addRingSegment(startCenter, fillHalfThick, halfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments);
+            addRingSegment(endCenter, fillHalfThick, halfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments);
+        }
+
+        if (hasFill) {
+            if (!hasBorder || fpOp) {
+                addCircleFringe(center, midRadius + fillHalfThick, startAngle, endAngle, fillPaint, segments, true);
+                addCircleFringe(center, midRadius - fillHalfThick, startAngle, endAngle, fillPaint, segments, false);
+                addCircleFringe(startCenter, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, fillPaint, capSegments, true);
+                addCircleFringe(endCenter, fillHalfThick, endAngle, endAngle + float.Pi, fillPaint, capSegments, true);
+            }
+            addRingSegment(center, midRadius - fillHalfThick, midRadius + fillHalfThick, startAngle, endAngle, fillPaint, segments);
+            addRingSegment(startCenter, 0, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, fillPaint, capSegments);
+            addRingSegment(endCenter, 0, fillHalfThick, endAngle, endAngle + float.Pi, fillPaint, capSegments);
+        }
+
+        
+    }
+
+    public void DrawArc(Vector2 center, Color fillColor, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true)
+        => DrawArc(center, PaintStyle.Solid(fillColor), PaintStyle.Solid(borderColor), innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments, enableAA);
+
+    public void FillArc(Vector2 center, PaintStyle fillPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, int segments = 48, bool enableAA = true)
+        => DrawArc(center, fillPaint, default, innerRadius, outerRadius, startAngle, endAngle, 0f, segments, enableAA);
+
+    public void FillArc(Vector2 center, Color fillColor, float innerRadius, float outerRadius, float startAngle, float endAngle, int segments = 48, bool enableAA = true)
+        => FillArc(center, PaintStyle.Solid(fillColor), innerRadius, outerRadius, startAngle, endAngle, segments, enableAA);
+
+    public void BorderArc(Vector2 center, PaintStyle borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true)
+        => DrawArc(center, default, borderPaint, innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments, enableAA);
+
+    public void BorderArc(Vector2 center, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true)
+        => BorderArc(center, PaintStyle.Solid(borderColor), innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments, enableAA);
+
+    public void DrawCircle(Vector2 center, PaintStyle fillPaint, PaintStyle borderPaint, float radius, float borderThickness, int segments = 48, bool enableAA = true) {
+        float innerRadius = Math.Max(0, radius - borderThickness);
+
+        bool hasBorder = borderThickness > 0 && borderPaint.ColorA.A > 0;
+        bool hasFill = innerRadius > 0 && fillPaint.ColorA.A > 0;
+
+        if (innerRadius > 0) {
+            fillPaint = transformPaint(fillPaint, center, -Vector2.One * radius, 0f);
+            addRingSegment(center, 0, innerRadius, 0, float.Tau, fillPaint, segments);
+        }
+
+        if (hasBorder) {
+            borderPaint = transformPaint(borderPaint, center, -Vector2.One * radius, 0f);
+            addRingSegment(center, innerRadius, radius, 0, float.Tau, borderPaint, segments);
+        }
+
+        if (!enableAA) return;
+
+        if (hasBorder) {
+            addCircleFringe(center, radius, 0, float.Tau, borderPaint, segments, true);
+            bool bpOp = borderPaint.IsOpaque();
+            if (bpOp) {
+                addCircleFringe(center, innerRadius, 0, float.Tau, borderPaint, segments, false);
+            }
+            if (!bpOp && fillPaint.IsOpaque()) {
+                addCircleFringe(center, innerRadius, 0, float.Tau, fillPaint, segments, true);
+            }
+        }
+        else if (hasFill) {
+            addCircleFringe(center, innerRadius, 0, float.Tau, fillPaint, segments, true);
+        }
+    }
+
+    public void DrawCircle(Vector2 center, Color fillColor, Color borderColor, float radius, float borderThickness, int segments = 48, bool enableAA = true)
+        => DrawCircle(center, PaintStyle.Solid(fillColor), PaintStyle.Solid(borderColor), radius, borderThickness, segments, enableAA);
+
+    public void FillCircle(Vector2 center, PaintStyle fillPaint, float radius, int segments = 48, bool enableAA = true)
+        => DrawCircle(center, fillPaint, default, radius, 0f, segments, enableAA);
+
+    public void FillCircle(Vector2 center, Color fillColor, float radius, int segments = 48, bool enableAA = true)
+        => FillCircle(center, PaintStyle.Solid(fillColor), radius, segments, enableAA);
+
+    public void BorderCircle(Vector2 center, PaintStyle borderPaint, float radius, float borderThickness, int segments = 48, bool enableAA = true)
+        => DrawCircle(center, default, borderPaint, radius, borderThickness, segments, enableAA);
+
+    public void BorderCircle(Vector2 center, Color borderColor, float radius, float borderThickness, int segments = 48, bool enableAA = true)
+        => BorderCircle(center, PaintStyle.Solid(borderColor), radius, borderThickness, segments, enableAA);
 
     private static PaintStyle transformPaint(PaintStyle paint, Vector2 center, Vector2 offset, float rotation) {
         if (!paint.IsLocal || paint.Type == PaintStyle.PaintType.Solid)
@@ -495,7 +656,7 @@ public class DioBatch {
         return paint;
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Vector2? size = null, Rectangle? sourceRect = null, Color? tint = null, float rotation = 0f, Vector2 origin = default, SpriteEffects effects = SpriteEffects.None, float rounding = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Vector2? size = null, Rectangle? sourceRect = null, Color? tint = null, float rotation = 0f, Vector2 origin = default, SpriteEffects effects = SpriteEffects.None, float rounding = 0f, int cornerSegments = 12) {
         Vector2 actualSize = size ?? new Vector2(texture.Width, texture.Height);
         if (actualSize.X <= 0 || actualSize.Y <= 0) return;
 
@@ -518,7 +679,7 @@ public class DioBatch {
             position + new Vector2(outR, outR),
             position + new Vector2(actualSize.X - outR, outR),
         ];
-        Span<float> startAngles = [0, MathHelper.PiOver2, MathHelper.Pi, MathHelper.Pi * 1.5f];
+        Span<float> startAngles = [0, MathHelper.PiOver2, float.Pi, float.Pi * 1.5f];
         float step = MathHelper.PiOver2 / cornerSegments;
 
         float rotSin = 0, rotCos = 1;
@@ -528,7 +689,7 @@ public class DioBatch {
             rotCos = MathF.Cos(rotation);
         }
 
-        Vector2 Transform(Vector2 p) {
+        Vector2 transform(Vector2 p) {
             if (!hasRotation) return p;
             float rx = p.X - (position.X + origin.X);
             float ry = p.Y - (position.Y + origin.Y);
@@ -548,7 +709,7 @@ public class DioBatch {
         bool flipH = (effects & SpriteEffects.FlipHorizontally) != 0;
         bool flipV = (effects & SpriteEffects.FlipVertically) != 0;
 
-        Vector2 GetUV(Vector2 p) {
+        Vector2 getUV(Vector2 p) {
             float tx = (p.X - position.X) / actualSize.X;
             float ty = (p.Y - position.Y) / actualSize.Y;
 
@@ -556,8 +717,8 @@ public class DioBatch {
             if (flipV) ty = 1f - ty;
 
             return new Vector2(
-                MathHelper.Lerp(uvMin.X, uvMax.X, tx),
-                MathHelper.Lerp(uvMin.Y, uvMax.Y, ty)
+                float.Lerp(uvMin.X, uvMax.X, tx),
+                float.Lerp(uvMin.Y, uvMax.Y, ty)
             );
         }
 
@@ -565,8 +726,8 @@ public class DioBatch {
         Vector2 centerPos = position + actualSize * 0.5f;
 
         _vertices[_vertexCount++] = new PrimitiveVertex(
-            new Vector3(Transform(centerPos), 0f),
-            new Vector4(GetUV(centerPos), texIndex, 0),
+            new Vector3(transform(centerPos), 0f),
+            new Vector4(getUV(centerPos), texIndex, 0),
             actualTint, 3f, _currentClip.Rect, _currentClip.Params);
 
         int vertCounter = 0;
@@ -577,8 +738,8 @@ public class DioBatch {
                 Vector2 pos = outCenters[c] + new Vector2(cos, sin) * outR;
 
                 _vertices[_vertexCount++] = new PrimitiveVertex(
-                    new Vector3(Transform(pos), 0f),
-                    new Vector4(GetUV(pos), texIndex, 0),
+                    new Vector3(transform(pos), 0f),
+                    new Vector4(getUV(pos), texIndex, 0),
                     actualTint, 3f, _currentClip.Rect, _currentClip.Params);
 
                 _indices[_indexCount++] = (short)startIdx;
@@ -589,34 +750,34 @@ public class DioBatch {
         }
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Color color, float rounding = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Color color, float rounding = 0f, int cornerSegments = 12) {
         DrawTexture(texture, position, null, null, color, 0f, default, SpriteEffects.None, rounding, cornerSegments);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Color color, float rounding = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Color color, float rounding = 0f, int cornerSegments = 12) {
         DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), null, color, 0f, default, SpriteEffects.None, rounding, cornerSegments);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rounding = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rounding = 0f, int cornerSegments = 12) {
         Vector2 size = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
         DrawTexture(texture, position, size, sourceRectangle, color, 0f, default, SpriteEffects.None, rounding, cornerSegments);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rounding = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rounding = 0f, int cornerSegments = 12) {
         DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), sourceRectangle, color, 0f, default, SpriteEffects.None, rounding, cornerSegments);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, float scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, float scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
         DrawTexture(texture, position, srcSize * scale, sourceRectangle, color, rotation, origin * scale, effects, rounding, cornerSegments);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
         DrawTexture(texture, position, srcSize * scale, sourceRectangle, color, rotation, origin * scale, effects, rounding, cornerSegments);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, SpriteEffects effects, float rounding = 0f, int cornerSegments = 8) {
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
         Vector2 destSize = new(destinationRectangle.Width, destinationRectangle.Height);
         Vector2 scale = new(destSize.X / srcSize.X, destSize.Y / srcSize.Y);
@@ -650,8 +811,8 @@ public class DioBatch {
             ColorA = paint.ColorA.ToVector4();
             ColorB = paint.ColorB.ToVector4();
             GradientData = new(paint.Start.X, paint.Start.Y, paint.End.X, paint.End.Y);
-            float safePower = Math.Clamp(paint.EasingPower, 0f, 99.9f);
-            float packedData = ((float)paint.Type * 1000f) + ((float)paint.Easing * 100f) + safePower;
+            float safePower = Math.Clamp(paint.EasingPower, 0f, 99.9F);
+            float packedData = ((float)paint.Type * 1000f) + ((float)paint.Easing * 100F) + safePower;
             PaintParams = new Vector3(paint.OffsetsA, paint.OffsetsB, packedData);
         }
 
@@ -662,7 +823,7 @@ public class DioBatch {
             ColorA = tint.ToVector4();
             ColorB = Vector4.Zero;
             GradientData = gradientData;
-            PaintParams = new Vector3(0f, 0f, paintType * 1000f);
+            PaintParams = new Vector3(0F, 0F, paintType * 1000F);
         }
 
         readonly VertexDeclaration IVertexType.VertexDeclaration => VertexDeclaration;

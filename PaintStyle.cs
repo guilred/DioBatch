@@ -15,7 +15,7 @@ public struct PaintStyle {
     public bool IsLocal;
     public float OffsetsA;
     public float OffsetsB;
-    public static PaintStyle Solid(Color color) => new() { Type = PaintType.Solid, ColorA = color };
+    public static PaintStyle Solid(Color color) => new() { Type = PaintType.Solid, ColorA = color, ColorB = Color.White };
     public static PaintStyle Linear(Vector2 start, Vector2 end, Color startColor, Color endColor, bool isLocal = true) {
         return new PaintStyle() {
             Type = PaintType.Linear,
@@ -46,7 +46,7 @@ public struct PaintStyle {
         }
         float distance = Vector2.Distance(Start, End);
         if (distance > 0.0001f) {
-            (OffsetsA, OffsetsB) = (offsetA / distance, offsetB / distance);
+            (OffsetsA, OffsetsB) = (offsetA / distance, (distance - offsetB) / distance);
             return this;
         }
         (OffsetsA, OffsetsB) = (0f, 1f);
@@ -57,4 +57,12 @@ public struct PaintStyle {
         EasingPower = power;
         return this;
     }
+    public PaintStyle Reversed() {
+        return this with { Start = End, End = Start };
+    }
+    public bool IsOpaque() => ColorA.A == 255 && ColorB.A == 255;
+    public static PaintStyle operator *(PaintStyle l, float r) {
+        return l with { ColorA = l.ColorA * r, ColorB = l.ColorB * r };
+    }
+    public static implicit operator PaintStyle(Color color) => PaintStyle.Solid(color);
 }
