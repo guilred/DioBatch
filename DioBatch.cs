@@ -328,8 +328,9 @@ public class DioBatch {
         rounding = Math.Clamp(rounding, 0, minHalf);
         borderThickness = Math.Clamp(borderThickness, 0, minHalf);
 
-        bool hasBorder = borderThickness > 0;
-        bool hasFill = borderThickness < minHalf;
+        bool bpTr = borderPaint.IsTrspt();
+        bool hasBorder = borderThickness > 0 && !bpTr;
+        bool hasFill = borderThickness < minHalf && !fillPaint.IsTrspt();
 
         if (!hasBorder && !hasFill) return;
 
@@ -347,7 +348,7 @@ public class DioBatch {
         ];
         Span<Vector2> inCenters = [Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero];
 
-        if (hasBorder) {
+        if (!bpTr) {
             Vector2 inPos = position + new Vector2(borderThickness, borderThickness);
             Vector2 inSize = size - new Vector2(borderThickness * 2, borderThickness * 2);
             inCenters[0] = inPos + new Vector2(inSize.X - inR, inSize.Y - inR);
@@ -366,7 +367,7 @@ public class DioBatch {
             rotCos = MathF.Cos(rotation);
         }
 
-        Vector2 Transform(Vector2 p) {
+        Vector2 transform(Vector2 p) {
             if (!hasRotation) return p;
             float rx = p.X - (position.X + origin.X);
             float ry = p.Y - (position.Y + origin.Y);
@@ -379,10 +380,10 @@ public class DioBatch {
         if (hasFill) {
             ensureCapacity(perimeterVerts + 1, perimeterVerts * 3);
             int startIdx = _vertexCount;
-            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(Transform(position + size * 0.5f), 0), fillPaint, _currentClip.Rect, _currentClip.Params);
+            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(transform(position + size * 0.5f), 0), fillPaint, _currentClip.Rect, _currentClip.Params);
 
-            Span<Vector2> fillCenters = hasBorder ? inCenters : outCenters;
-            float fillR = hasBorder ? inR : outR;
+            Span<Vector2> fillCenters = !bpTr ? inCenters : outCenters;
+            float fillR = bpTr ? inR : outR;
 
             int vertCounter = 0;
             for (int c = 0; c < 4; c++) {
@@ -391,7 +392,7 @@ public class DioBatch {
                     (float sin, float cos) = MathF.SinCos(angle);
                     Vector2 pos = fillCenters[c] + new Vector2(cos, sin) * fillR;
 
-                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(Transform(pos), 0), fillPaint, _currentClip.Rect, _currentClip.Params);
+                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(transform(pos), 0), fillPaint, _currentClip.Rect, _currentClip.Params);
 
                     _indices[_indexCount++] = (short)startIdx;
                     _indices[_indexCount++] = (short)(startIdx + vertCounter + 1);
@@ -415,8 +416,8 @@ public class DioBatch {
                     Vector2 inPos = inCenters[c] + dir * inR;
                     Vector2 outPos = outCenters[c] + dir * outR;
 
-                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(Transform(inPos), 0), borderPaint, _currentClip.Rect, _currentClip.Params);
-                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(Transform(outPos), 0), borderPaint, _currentClip.Rect, _currentClip.Params);
+                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(transform(inPos), 0), borderPaint, _currentClip.Rect, _currentClip.Params);
+                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(transform(outPos), 0), borderPaint, _currentClip.Rect, _currentClip.Params);
 
                     int nextI = (vertCounter + 1) % perimeterVerts;
                     int v0 = startIdx + vertCounter * 2;
@@ -444,17 +445,16 @@ public class DioBatch {
         if (hasBorder) {
             addRectFringe(outCenters, outR, cornerSegments, borderPaint, true, hasRotation, rotSin, rotCos, aaPivot);
             bool bpOp = borderPaint.IsOpaque();
-            if (bpOp) {
+            if (bpOp || !hasFill) {
                 addRectFringe(inCenters, inR, cornerSegments, borderPaint, false, hasRotation, rotSin, rotCos, aaPivot);
             }
             if (!bpOp && fillPaint.IsOpaque()) {
                 addRectFringe(inCenters, inR, cornerSegments, fillPaint, true, hasRotation, rotSin, rotCos, aaPivot);
             }
         }
-        else {
-            addRectFringe(outCenters, outR, cornerSegments, fillPaint, true, hasRotation, rotSin, rotCos, aaPivot);
+        else if (hasFill) {
+            addRectFringe(outCenters, inR, cornerSegments, fillPaint, true, hasRotation, rotSin, rotCos, aaPivot);
         }
-        
     }
 
     public void DrawRectangle(Vector2 position, Vector2 size, Color fillColor, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
@@ -519,10 +519,10 @@ public class DioBatch {
         float borderThick = Math.Min(borderThickness, halfThick);
         float fillHalfThick = Math.Max(0, halfThick - borderThick);
 
-        bool hasBorder = borderThick > 0 && borderPaint.ColorA.A > 0;
-        bool hasFill = fillHalfThick > 0 && fillPaint.ColorA.A > 0;
+        bool hasBorder = borderThick > 0 && !borderPaint.IsTrspt();
+        bool hasFill = fillHalfThick > 0 && !fillPaint.IsTrspt();
 
-        if (!hasBorder && !hasFill) return;
+        if (!(borderThick > 0) && !hasFill) return;
 
         float totalRadius = innerRadius + outerRadius;
         fillPaint = transformPaint(fillPaint, center, -Vector2.One * totalRadius, 0f);
@@ -534,13 +534,13 @@ public class DioBatch {
         int capSegments = Math.Max(3, segments / 4);
 
         bool fpOp = fillPaint.IsOpaque();
-        if (hasBorder) {
+        if (hasBorder ) {
             if (enableAA) {
                 addCircleFringe(center, midRadius + halfThick, startAngle, endAngle, borderPaint, segments, true);
                 addCircleFringe(center, midRadius - halfThick, startAngle, endAngle, borderPaint, segments, false);
                 addCircleFringe(startCenter, halfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments, true);
                 addCircleFringe(endCenter, halfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments, true);
-                if (!fpOp && borderPaint.IsOpaque()) {
+                if (!fpOp && borderPaint.IsOpaque() || !hasFill) {
                     addCircleFringe(center, midRadius - fillHalfThick, startAngle, endAngle, borderPaint, segments, true);
                     addCircleFringe(center, midRadius + fillHalfThick, startAngle, endAngle, borderPaint, segments, false);
                     addCircleFringe(startCenter, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments, false);
@@ -586,8 +586,8 @@ public class DioBatch {
     public void DrawCircle(Vector2 center, PaintStyle fillPaint, PaintStyle borderPaint, float radius, float borderThickness, int segments = 48, bool enableAA = true) {
         float innerRadius = Math.Max(0, radius - borderThickness);
 
-        bool hasBorder = borderThickness > 0 && borderPaint.ColorA.A > 0;
-        bool hasFill = innerRadius > 0 && fillPaint.ColorA.A > 0;
+        bool hasBorder = borderThickness > 0 && !borderPaint.IsTrspt();
+        bool hasFill = innerRadius > 0 && !fillPaint.IsTrspt();
 
         if (innerRadius > 0) {
             fillPaint = transformPaint(fillPaint, center, -Vector2.One * radius, 0f);
@@ -604,7 +604,7 @@ public class DioBatch {
         if (hasBorder) {
             addCircleFringe(center, radius, 0, float.Tau, borderPaint, segments, true);
             bool bpOp = borderPaint.IsOpaque();
-            if (bpOp) {
+            if (bpOp || !hasFill) {
                 addCircleFringe(center, innerRadius, 0, float.Tau, borderPaint, segments, false);
             }
             if (!bpOp && fillPaint.IsOpaque()) {

@@ -59,7 +59,7 @@ public class Test : Game {
         GraphicsDevice.SetRenderTarget(_mid);
         GraphicsDevice.Clear(new Color(0, 191, 255));
 
-        float time = (float)gameTime.TotalGameTime.TotalSeconds * 0.1f;
+        float time = (float)gameTime.TotalGameTime.TotalSeconds;
         var wave = float.Pow(float.Sin(time * 0.25f * float.Pi), 2);
         var mpos = Mouse.GetState().Position.ToVector2();
 
@@ -168,11 +168,11 @@ public class Test : Game {
 
         _shapeBatch.End();
 
-        performTests();
+        performTests((int)((time * 0.25f) / 0.25f) % (5 + 1));
 
         GraphicsDevice.SetRenderTarget(null);
 
-        var zoomPos = Vector2.One * 80 + Vector2.UnitX * 10;
+        var zoomPos = mpos;// Vector2.One * 80 + Vector2.UnitX * 1200;
         var zoomMat = _zoomed ? Matrix.CreateTranslation(-zoomPos.X, -zoomPos.Y, 0) * Matrix.CreateScale(4) * Matrix.CreateTranslation(zoomPos.X, zoomPos.Y, 0): Matrix.Identity;
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: zoomMat);
         _spriteBatch.Draw(_mid, _mid.Bounds, Color.White);
@@ -181,10 +181,11 @@ public class Test : Game {
         base.Draw(gameTime);
     }
     private static Color bc(Color color, float amount) => new(color.R * amount / 255, color.G * amount / 255, color.B * amount / 255, color.A / 255);
-    private void performTests() {
+    private void performTests(int state) {
         GraphicsDevice.Clear(Color.White);
 
         float cx = 100, cy = 100, padding = 100;
+        (float m1, float m2) = state switch { 0 => (0.5f, 0.5f), 1 => (0, 0.5f), 2 => (0.5f, 0), 3 => (1, 1), 4 => (1, 0.5f), 5 => (0.5f, 1), _ => (0, 0) };
         var pos = new Vector2(cx, cy);
         var size = new Vector2(200, 150);
         void step() {
@@ -198,25 +199,27 @@ public class Test : Game {
 
         _dioBatch.Begin();
 
-        var ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta);
-        var ps2 = PaintStyle.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue);
-        _dioBatch.DrawRectangle(pos, size, Color.Green, Color.Black, 20, 40, 0, size / 2);
+        var ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * m1;
+        var ps2 = PaintStyle.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * m2;
+        _dioBatch.DrawRectangle(pos, size, ps, ps2, 20, 40, 0, size / 2);
         step();
 
-        ps = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta).SetOffsets(20, 20, true);
-        _dioBatch.DrawCircle(pos + size / 2, ps, ps.Reversed(), size.X / 2, 20);
+        ps = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta) * m1;
+        ps2 = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Magenta, Color.Blue) * m2;
+        _dioBatch.DrawCircle(pos + size / 2, ps, ps2, size.X / 2, 20);
         step();
 
-        ps = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta);
-        ps2 = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Magenta, Color.Blue);
+        ps = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta) * m1;
+        ps2 = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Magenta, Color.Blue) * m2;
         _dioBatch.DrawArc(pos + size / 2, ps, ps2, size.X / 2 - 80, 80, 0, float.Pi * 1.5f, 20);
         step();
         
-        ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta);
-        _dioBatch.DrawLine(pos, pos + size, ps, ps.Reversed(), 50, 5);
+        ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * m1;
+        ps2 = PaintStyle.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * m2;
+        _dioBatch.DrawLine(pos, pos + size, ps, ps2, 50, 5);
         step();
 
-        _dioBatch.DrawTexture(_gr, pos, size, tint: Color.Green, rounding: 20);
+        _dioBatch.DrawTexture(_gr, pos, size, rounding: 20);
 
         _dioBatch.End();
     }

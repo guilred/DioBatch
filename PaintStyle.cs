@@ -61,6 +61,7 @@ public struct PaintStyle {
         return this with { Start = End, End = Start };
     }
     public bool IsOpaque() => ColorA.A == 255 && ColorB.A == 255;
+    public bool IsTrspt() => ColorA.A == 0 && ColorB.A == 0;
     public static PaintStyle operator *(PaintStyle l, float r) {
         return l with { ColorA = l.ColorA * r, ColorB = l.ColorB * r };
     }
