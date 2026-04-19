@@ -32,7 +32,7 @@ public class Test : Game {
 
     protected override void LoadContent() {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
-        _dioBatch = new DioBatch(GraphicsDevice, Content);
+        _dioBatch = new DioBatch(GraphicsDevice);
         _mg = Content.Load<Texture2D>("mg");
         _gr = Content.Load<Texture2D>("gr");
         _mid = new RenderTarget2D(GraphicsDevice, 1600, 900);

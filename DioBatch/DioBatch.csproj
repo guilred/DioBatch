@@ -1,13 +1,29 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<UpToDateCheckInput Include="diobatch-effect.fx" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Remove="diobatch-effect.mgfx" />
+		<EmbeddedResource Include="diobatch-effect.mgfx">
+			<LogicalName>DioBatch.diobatch-effect.mgfx</LogicalName>
+		</EmbeddedResource>
+	</ItemGroup>
+
+	<Target Name="CompileShaders" BeforeTargets="BeforeBuild" Inputs="diobatch-effect.fx" Outputs="diobatch-effect.mgfx">
+		<Message Importance="High" Text="> Compiling DioBatch Shader..." />
+		<Exec Command="dotnet tool run mgfxc diobatch-effect.fx diobatch-effect.mgfx /Profile:OpenGL" />
+	</Target>
 
 </Project>
