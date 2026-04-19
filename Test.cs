@@ -201,7 +201,7 @@ public class Test : Game {
 
         var ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * m1;
         var ps2 = PaintStyle.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * m2;
-        _dioBatch.DrawRectangle(pos, size, ps, ps2, 20, 40, 0, size / 2);
+        _dioBatch.DrawRectangle(pos, size, ps, ps2, 20, 40, 0.05f, size / 2);
         step();
 
         ps = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta) * m1;
