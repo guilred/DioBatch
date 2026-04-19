@@ -5,14 +5,12 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Runtime.CompilerServices;
-using Apos.Shapes;
 
 namespace DioUI;
 
 public class Test : Game {
     private GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch;
-    private ShapeBatch _shapeBatch;
     private DioBatch _dioBatch;
     private Texture2D _mg;
     private Texture2D _gr;
@@ -35,7 +33,6 @@ public class Test : Game {
 
     protected override void LoadContent() {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
-        _shapeBatch = new ShapeBatch(GraphicsDevice, Content);
         _dioBatch = new DioBatch(GraphicsDevice, Content);
         _mg = Content.Load<Texture2D>("mg");
         _gr = Content.Load<Texture2D>("gr");
@@ -161,12 +158,6 @@ public class Test : Game {
         //_dioBatch.DrawTexture(_mg, new Vector2(_mg.Width, 0), Color.White);
 
         _dioBatch.End();*/
-
-        _shapeBatch.Begin();
-
-        _shapeBatch.DrawRectangle(new(150, 350), new(300, 100), Color.Green * 0.5f, Color.Blue * 0.5f, 10, 20);
-
-        _shapeBatch.End();
 
         performTests((int)((time * 0.25f) / 0.25f) % (5 + 1));
 

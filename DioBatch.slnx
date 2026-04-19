@@ -1,4 +1,4 @@
 <Solution>
-  <Project Path="../DioBatch/DioBatch.csproj" Id="f4302df0-cf0f-4d83-8ae5-da072512d3bd" />
-  <Project Path="DioBatchTests.csproj" />
+  <Project Path="DioBatch/DioBatch.csproj" Id="1c6a6218-4e4a-45d6-b955-4782175cc45f" />
+  <Project Path="DioBatchTests/DioBatchTests.csproj" />
 </Solution>
