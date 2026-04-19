@@ -23,10 +23,9 @@ public class Test : Game {
 
     protected override void Initialize() {
         (_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight) = (1600, 900);
-        //_graphics.SynchronizeWithVerticalRetrace = false;
-        //IsFixedTimeStep = false;
+        _graphics.SynchronizeWithVerticalRetrace = false;
+        IsFixedTimeStep = false;
         _graphics.ApplyChanges();
-
 
         base.Initialize();
     }
@@ -53,117 +52,100 @@ public class Test : Game {
 
     protected override void Draw(GameTime gameTime) {
         if (!IsActive) return;
-        GraphicsDevice.SetRenderTarget(_mid);
-        GraphicsDevice.Clear(new Color(0, 191, 255));
 
+        int SCENE = 0;
         float time = (float)gameTime.TotalGameTime.TotalSeconds;
         var wave = float.Pow(float.Sin(time * 0.25f * float.Pi), 2);
         var mpos = Mouse.GetState().Position.ToVector2();
 
+        GraphicsDevice.SetRenderTarget(_mid);
+        if (SCENE == 0) {
+            GraphicsDevice.Clear(new Color(0, 191, 255));
 
+            _dioBatch.Begin();
+            var bgps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitY * 900, new Color(0, 191, 255), Color.Blue).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
+            _dioBatch.FillRectangle(Vector2.Zero, new(1600, 900), bgps);
 
-        /*_dioBatch.Begin();
-        var bgps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitY * 900, new Color(0, 191, 255), Color.Blue).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
-        _dioBatch.FillRectangle(Vector2.Zero, new(1600, 900), bgps);
+            var clipRect = new RectangleF(mpos.X - 200, mpos.Y - 200 - 100 * wave, 400, 400 + 200 * wave);
+            var clipRot = time * 0.5f;
 
-
-        var clipRect = new RectangleF(mpos.X - 200, mpos.Y - 200 - 100 * wave, 400, 400 + 200 * wave);
-        var clipRot = time * 0.5f;
-
-        var rng = new RngStruct(420);
-        var nextF = rng.NextFloat;
-        var csDir = Vector2.Rotate(Vector2.UnitX, float.Pi * 0.1f);
-        float depth = 0.2f;
-        for (int i = 0; i < 100; i++) {
-            var pos = new Vector2(1600 * nextF(), 900 * nextF()) + csDir * time * 500 * depth;
-            if (pos.X > 2000) pos.X = pos.X % 2000 - 300;
-            if (pos.Y > 1200) pos.Y = pos.Y % 1200 - 300;
-            var size = new Vector2(200 + 50 * nextF(), 50 + 50 * nextF()) * depth;
-            var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitY * size.Y, Color.White, Color.LightBlue).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
-            _dioBatch.FillRectangle(pos, size, ps, 10, float.Pi * 0.1f * nextF());
-            depth += 0.8f / 100;
-            if (i == 49) {
-                _dioBatch.PushClip(clipRect, 50, clipRot);
+            var rng = new RngStruct(420);
+            var nextF = rng.NextFloat;
+            float depth = 0.2f;
+            for (int i = 0; i < 100; i++) {
+                var dir = float.Pi * 0.1f * nextF();
+                var csDir = Vector2.Rotate(Vector2.UnitX, dir);
+                var pos = new Vector2(1600 * nextF(), 900 * nextF()) + csDir * time * 500 * depth;
+                if (pos.X > 2000) pos.X = pos.X % 2000 - 300;
+                if (pos.Y > 1200) pos.Y = pos.Y % 1200 - 300;
+                var size = new Vector2(200 + 50 * nextF(), 50 + 50 * nextF()) * depth;
+                var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitY * size.Y, Color.White, Color.LightBlue).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
+                _dioBatch.FillRectangle(pos, size, ps, 10, dir);
+                depth += 0.8f / 100;
+                if (i == 49) {
+                    _dioBatch.PushClip(clipRect, 50, clipRot);
+                }
             }
+            depth = 0.2f;
+            for (int i = 0; i < 20; i++) {
+                float r = i % 2 == 0 ? 0 : 50 * nextF();
+                var pos = new Vector2(1600 * nextF(), 900 * nextF()) - Vector2.UnitY * time * 500 * depth;
+                if (pos.Y < 1200) pos.Y = 1200 + pos.Y % 1200 - 300;
+                var size = new Vector2(200, 200) * depth;
+                _dioBatch.DrawTexture(i % 2 == 0 ? _mg : _gr, pos, size, rounding: r);
+                var Midbottom = pos + new Vector2(size.X / 2, size.Y);
+                _dioBatch.FillLine(Midbottom, Midbottom + Vector2.UnitY * 200 * depth, Color.Black, 5 * depth);
+                depth += 0.8f / 20;
+            }
+
+            _dioBatch.PopClip();
+            var sunCenter = new Vector2(800, 450);
+            var sunR = 300 - 30 * wave;
+            var sunG = PaintStyle.Radial(Vector2.One * sunR, Vector2.UnitX * sunR, Color.Yellow, Color.LightYellow).SetEasing(PaintStyle.EasingType.EaseIn, 4);
+            _dioBatch.FillCircle(sunCenter, sunG, sunR, 64);
+            for (int i = 0; i < 20; i++) {
+                if (i % 2 == 0) {
+                    _dioBatch.PushClip(clipRect, 50, clipRot);
+                }
+                else {
+                    _dioBatch.PopClip();
+                }
+                float t = i / 20f;
+                float angle = float.Tau * t + time * 0.5f;
+                var start = sunCenter + Vector2.Rotate(Vector2.UnitX * (360 - 30 * wave), angle);
+                var bladeLenght = 200 - 30 * float.Sin(float.Tau * t + time * 2);
+                var end = sunCenter + Vector2.Rotate(Vector2.UnitX * (320 + bladeLenght), angle);
+                var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitX * bladeLenght, Color.Yellow, Color.LightYellow).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
+                _dioBatch.FillLine(start, end, ps, 50);
+            }
+
+            for (int j = 0; j < 6; j++) {
+                if (j % 2 == 0) {
+                    _dioBatch.PushClip(clipRect, 50, clipRot);
+                }
+                else {
+                    _dioBatch.PopClip();
+                }
+                for (int i = 0; i < 10; i++) {
+                    var iwave = float.Pow(float.Sin(time * 0.5f * float.Pi + i * 0.2f + (j * 0.2f - 0.3f)), 2);
+                    var pos = new Vector2(160 * i + 80, 780 + (j * 35) - (80 - j * 10) * iwave);
+                    var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitX * (85 + (j * 10)) * 2, bc(Color.Green, 0.5f - j * 0.1f), bc(Color.Green, 1 - j * 0.1f));
+                    _dioBatch.FillCircle(pos, ps, 85 + (j * 10));
+                }
+            }
+
+            if (wave > 0.5f)
+                _dioBatch.BorderRectangle(clipRect.Position, clipRect.Size, Color.Black, 2, 50, clipRot, clipRect.Size / 2);
+
+            _dioBatch.End(); // ONE SINGLE DRAW CALL
         }
-        depth = 0.2f;
-        for (int i = 0; i < 20; i++) {
-            float r = i % 2 == 0 ? 0 : 50 * nextF();
-            var pos = new Vector2(1600 * nextF(), 900 * nextF()) - Vector2.UnitY * time * 500 * depth;
-            if (pos.Y < 1200) pos.Y = 1200 + pos.Y % 1200 - 300;
-            var size = new Vector2(200, 200) * depth;
-            _dioBatch.DrawTexture(i % 2 == 0 ? _mg : _gr, pos, size, rounding: r);
-            var Midbottom = pos + new Vector2(size.X / 2, size.Y);
-            _dioBatch.FillLine(Midbottom, Midbottom + Vector2.UnitY * 200 * depth, Color.Black, 5 * depth);
-            depth += 0.8f / 20;
+        else if (SCENE == 1) {
+            performTests((int)((time * 0.25f) / 0.25f) % (5 + 1));
         }
-
-        _dioBatch.PopClip();
-        var sunCenter = new Vector2(800, 450);
-        var sunR = 300 - 30 * wave;
-        var sunG = PaintStyle.Radial(Vector2.Zero, Vector2.UnitX * sunR, Color.Yellow, Color.LightYellow).SetEasing(PaintStyle.EasingType.EaseIn, 4);
-        _dioBatch.FillCircle(sunCenter, sunG, sunR, 48);
-        for (int i = 0; i < 20; i++) {
-            if (i % 2 == 0) {
-                _dioBatch.PushClip(clipRect, 50, clipRot);
-            }
-            else {
-                _dioBatch.PopClip();
-            }
-            float t = i / 20f;
-            float angle = float.Tau * t + time * 0.5f;
-            var start = sunCenter + Vector2.Rotate(Vector2.UnitX * (360 - 30 * wave), angle);
-            var bladeLenght = 200 - 30 * float.Sin(float.Tau * t + time * 2);
-            var end = sunCenter + Vector2.Rotate(Vector2.UnitX * (320 + bladeLenght), angle);
-            var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitX * bladeLenght, Color.Yellow, Color.LightYellow).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
-            _dioBatch.FillLine(start, end, ps, 50);
-        }
-
-        for (int j = 0; j < 6; j++) {
-            if (j % 2 == 0) {
-                _dioBatch.PushClip(clipRect, 50, clipRot);
-            }
-            else {
-                _dioBatch.PopClip();
-            }
-            for (int i = 0; i < 10; i++) {
-                var iwave = float.Pow(float.Sin(time * 0.5f * float.Pi + i * 0.2f + (j * 0.2f - 0.3f)), 2);
-                var pos = new Vector2(160 * i + 80, 780 + (j * 35) - (80 - j * 10) * iwave);
-                var ps = PaintStyle.Linear(-Vector2.UnitX * (85 + (j * 10)), Vector2.UnitX * (85 + (j * 10)), bc(Color.Green, 0.5f - j * 0.1f), bc(Color.Green, 1 - j * 0.1f));
-                _dioBatch.FillCircle(pos, ps, 85 + (j * 10));
-            }
-        }
-
-        if (wave > 0.5f)
-            _dioBatch.BorderRectangle(clipRect.Position, clipRect.Size, Color.Black, 2, 50, clipRot, clipRect.Size / 2);
-
-        _dioBatch.End(); // ONE SINGLE DRAW CALL*/
-
-        /*_dioBatch.Begin();
-
-        var ps1 = PaintStyle.Linear(Vector2.Zero, Vector2.UnitX * 300, Color.Magenta, Color.Blue).SetOffsets(0.49f, 0.51f);
-        var ps2 = PaintStyle.Linear(Vector2.Zero, Vector2.UnitY * 250, Color.Yellow, Color.Red).SetOffsets(0.49f, 0.51f);
-
-        //_dioBatch.FillArc(new(500, 200), Color.Green, 200, 50, 0, float.Pi/2);
-        var p1 = new Vector2(200);
-        var p2 = Vector2.Rotate(new Vector2(200, 0), 1) + new Vector2(200);
-        var ps3 = PaintStyle.Linear(Vector2.Zero, Vector2.UnitX * 200, Color.Green, Color.Red)
-            .SetOffsets(0.75f, 0.25f); 
-
-        _dioBatch.DrawLine(p2, p1, ps3, PaintStyle.Solid(Color.YellowGreen), 100, 10);
-
-        _dioBatch.BorderRectangle(new(150), new(300, 100), ps3, 5, 20, enableAA: wave > 0.5f);
-        
-
-        //_dioBatch.DrawTexture(_mg, new Vector2(_mg.Width, 0), Color.White);
-
-        _dioBatch.End();*/
-
-        performTests((int)((time * 0.25f) / 0.25f) % (5 + 1));
 
         GraphicsDevice.SetRenderTarget(null);
 
-        var zoomPos = mpos;// Vector2.One * 80 + Vector2.UnitX * 1200;
+        var zoomPos = mpos; // Vector2.One * 80 + Vector2.UnitX * 1200;
         var zoomMat = _zoomed ? Matrix.CreateTranslation(-zoomPos.X, -zoomPos.Y, 0) * Matrix.CreateScale(4) * Matrix.CreateTranslation(zoomPos.X, zoomPos.Y, 0): Matrix.Identity;
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: zoomMat);
         _spriteBatch.Draw(_mid, _mid.Bounds, Color.White);
