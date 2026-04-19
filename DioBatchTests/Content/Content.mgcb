@@ -13,12 +13,6 @@
 
 #---------------------------------- Content ---------------------------------#
 
-#begin diobatch-effect.fx
-/importer:EffectImporter
-/processor:EffectProcessor
-/processorParam:DebugMode=Auto
-/build:diobatch-effect.fx
-
 #begin gr.png
 /importer:TextureImporter
 /processor:TextureProcessor

@@ -2,9 +2,9 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Reflection;
+using System.IO;
 
 namespace DioUI;
 
@@ -36,10 +36,22 @@ public class DioBatch {
     // debugging
     private double d_time;
     private bool d_blink => double.Sin(d_time * 5) > 0;
-    public DioBatch(GraphicsDevice device, ContentManager content) {
+    public DioBatch(GraphicsDevice device, ContentManager? content = null, Effect? effect = null) {
         _device = device;
 
-        _effect = content.Load<Effect>("diobatch-effect");
+        if (content is not null)
+            _effect = content.Load<Effect>("diobatch-effect");
+        else if (effect is not null)
+            _effect = effect;
+        else {
+            var assembly = typeof(DioBatch).Assembly;
+            string resourceName = "DioBatch.diobatch-effect.mgfx";
+            using Stream? stream = assembly.GetManifestResourceStream(resourceName) ?? throw new Exception("Could not find the embedded shader resource :(");
+            byte[] bytecode = new byte[stream.Length];
+            stream.ReadExactly(bytecode, 0, (int)stream.Length);
+            _effect = new Effect(_device, bytecode);
+        }   
+
         _pass = _effect.Techniques[0].Passes[0];
         _projectionParam = _effect.Parameters["Projection"];
 
