@@ -139,7 +139,7 @@ float4 PS(VSOutput input) : SV_TARGET {
     
     float2 clipWH = input.ClipRect.zw;
     [branch]
-    if (clipWH.x > 0.0 && clipWH.y > 0.0) {
+    if (clipWH.x >= 0.0 && clipWH.y >= 0.0) {
         float2 clipXY = input.ClipRect.xy;
         float radius = input.ClipParams.x;
         float rotation = input.ClipParams.y;

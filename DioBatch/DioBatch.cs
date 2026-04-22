@@ -74,7 +74,7 @@ public class DioBatch {
         _currentSamplerState = samplerState ?? SamplerState.LinearClamp;
         _begun = true;
         d_time += 1 / 60f;
-        PushClip(new(0, 0, -1, 0), 0, 0, false);
+        _currentClip = new ClipState { Rect = new(0, 0, -1, 0), Params = Vector2.Zero };
     }
 
     public void End(bool maintainClipRects = false) {
@@ -84,7 +84,11 @@ public class DioBatch {
         _begun = false;
         if (!maintainClipRects) {
             _clipStack.Clear();
-            _currentClip = new ClipState { Rect = Vector4.Zero, Params = Vector2.Zero };
+        }
+        if (_clipStack.Count > _maxClips) {
+            while (_clipStack.Count > _maxClips) {
+                _clipStack.Pop();
+            }
         }
     }
 
@@ -139,13 +143,14 @@ public class DioBatch {
         public Vector2 Params;
     }
 
+    private int _maxClips = 2048;
     private readonly Stack<ClipState> _clipStack = new();
     private ClipState _currentClip = new() { Rect = Vector4.Zero, Params = Vector2.Zero };
 
     public void PushClip(RectangleF clipRect, float rounding = 0f, float rotation = 0f, bool intersect = true) {
         Vector4 newRect = new(clipRect.Position.X, clipRect.Position.Y, clipRect.Width, clipRect.Height);
 
-        if (intersect && _clipStack.Count > 0 && _currentClip.Rect.Z > 0) {
+        if (intersect && _clipStack.Count > 0 && _currentClip.Rect.Z > 0 && _currentClip.Rect.W > 0) {
             float x1 = Math.Max(_currentClip.Rect.X, newRect.X);
             float y1 = Math.Max(_currentClip.Rect.Y, newRect.Y);
             float x2 = Math.Min(_currentClip.Rect.X + _currentClip.Rect.Z, newRect.X + newRect.Z);
@@ -167,7 +172,7 @@ public class DioBatch {
         if (_clipStack.Count > 0) {
             _clipStack.Pop();
         }
-        _currentClip = _clipStack.Count > 0 ? _clipStack.Peek() : new ClipState { Rect = Vector4.Zero, Params = Vector2.Zero };
+        _currentClip = _clipStack.Count > 0 ? _clipStack.Peek() : _currentClip = new ClipState { Rect = new(0, 0, -1, 0), Params = Vector2.Zero };
     }
     private int getTextureIndex(Texture2D texture) {
         for (int i = 0; i < _textureCount; i++) {
