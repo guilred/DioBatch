@@ -3,8 +3,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using System.Runtime.InteropServices;
-using System.Reflection;
-using System.IO;
 
 namespace DioUI;
 
@@ -143,7 +141,7 @@ public class DioBatch {
         public Vector2 Params;
     }
 
-    private int _maxClips = 2048;
+    private const int _maxClips = 2048;
     private readonly Stack<ClipState> _clipStack = new();
     private ClipState _currentClip = new() { Rect = Vector4.Zero, Params = Vector2.Zero };
 
@@ -295,46 +293,6 @@ public class DioBatch {
             _indices[_indexCount++] = (short)v2;
         }
     }
-
-    private void addCircleFringe(Vector2 center, float radius, float startAngle, float endAngle,
-        PaintStyle paint, int segments, bool outer) {
-        if (segments < 1 || radius <= 0f) return;
-
-        float fringeRadius = outer ? radius + 1f : Math.Max(0f, radius - 1f);
-        if (!outer && fringeRadius >= radius) return;
-
-        ensureCapacity((segments + 1) * 2, segments * 6);
-        int fringeStart = _vertexCount;
-
-        for (int i = 0; i <= segments; i++) {
-            float angle = float.Lerp(startAngle, endAngle, (float)i / segments);
-            (float sin, float cos) = MathF.SinCos(angle);
-            Vector2 dir = new(cos, sin);
-
-            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(center + dir * radius, 0), paint, _currentClip.Rect, _currentClip.Params);
-
-            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(center + dir * fringeRadius, 0), paint, _currentClip.Rect, _currentClip.Params) {
-                ColorA = Vector4.Zero,
-                ColorB = Vector4.Zero
-            };
-        }
-
-        for (int i = 0; i < segments; i++) {
-            int v0 = fringeStart + i * 2;
-            int v1 = fringeStart + i * 2 + 1;
-            int v2 = fringeStart + (i + 1) * 2;
-            int v3 = fringeStart + (i + 1) * 2 + 1;
-
-            _indices[_indexCount++] = (short)v0;
-            _indices[_indexCount++] = (short)v1;
-            _indices[_indexCount++] = (short)v2;
-
-            _indices[_indexCount++] = (short)v1;
-            _indices[_indexCount++] = (short)v3;
-            _indices[_indexCount++] = (short)v2;
-        }
-    }
-
     public void DrawRectangle(Vector2 position, Vector2 size, PaintStyle fillPaint, PaintStyle borderPaint, float borderThickness, float rounding, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true) {
         if (size.X <= 0 || size.Y <= 0) return;
 
@@ -523,11 +481,50 @@ public class DioBatch {
     public void BorderLine(Vector2 start, Vector2 end, Color borderColor, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true)
         => BorderLine(start, end, PaintStyle.Solid(borderColor), thickness, borderThickness, capSegments, enableAA);
 
+    private void addCircleFringe(Vector2 center, float radius, float startAngle, float endAngle,
+        PaintStyle paint, int segments, bool outer) {
+        if (segments < 1 || radius <= 0f) return;
+
+        float fringeRadius = outer ? radius + 1f : Math.Max(0f, radius - 1f);
+        if (!outer && fringeRadius >= radius) return;
+
+        ensureCapacity((segments + 1) * 2, segments * 6);
+        int fringeStart = _vertexCount;
+
+        for (int i = 0; i <= segments; i++) {
+            float angle = float.Lerp(startAngle, endAngle, (float)i / segments);
+            (float sin, float cos) = MathF.SinCos(angle);
+            Vector2 dir = new(cos, sin);
+
+            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(center + dir * radius, 0), paint, _currentClip.Rect, _currentClip.Params);
+
+            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(center + dir * fringeRadius, 0), paint, _currentClip.Rect, _currentClip.Params) {
+                ColorA = Vector4.Zero,
+                ColorB = Vector4.Zero
+            };
+        }
+
+        for (int i = 0; i < segments; i++) {
+            int v0 = fringeStart + i * 2;
+            int v1 = fringeStart + i * 2 + 1;
+            int v2 = fringeStart + (i + 1) * 2;
+            int v3 = fringeStart + (i + 1) * 2 + 1;
+
+            _indices[_indexCount++] = (short)v0;
+            _indices[_indexCount++] = (short)v1;
+            _indices[_indexCount++] = (short)v2;
+
+            _indices[_indexCount++] = (short)v1;
+            _indices[_indexCount++] = (short)v3;
+            _indices[_indexCount++] = (short)v2;
+        }
+    }
     public void DrawArc(Vector2 center, PaintStyle fillPaint, PaintStyle borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true) {
+        outerRadius += innerRadius;
+
         if (outerRadius < innerRadius) {
             (innerRadius, outerRadius) = (outerRadius, innerRadius);
         }
-
         float thickness = outerRadius - innerRadius;
         if (thickness <= 0 || segments < 3) return;
 
@@ -648,7 +645,6 @@ public class DioBatch {
 
     public void BorderCircle(Vector2 center, Color borderColor, float radius, float borderThickness, int segments = 48, bool enableAA = true)
         => BorderCircle(center, PaintStyle.Solid(borderColor), radius, borderThickness, segments, enableAA);
-
     private static PaintStyle transformPaint(PaintStyle paint, Vector2 center, Vector2 offset, float rotation) {
         if (!paint.IsLocal || paint.Type == PaintStyle.PaintType.Solid)
             return paint;
