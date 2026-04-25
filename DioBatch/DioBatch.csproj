@@ -15,14 +15,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Remove="CompleteProject.txt" />
 		<None Remove="diobatch-effect.mgfx" />
+		<None Remove="ProjectTree.txt" />
 		<EmbeddedResource Include="diobatch-effect.mgfx">
 			<LogicalName>DioBatch.diobatch-effect.mgfx</LogicalName>
 		</EmbeddedResource>
 	</ItemGroup>
 
 	<Target Name="CompileShaders" BeforeTargets="BeforeBuild" Inputs="diobatch-effect.fx" Outputs="diobatch-effect.mgfx">
-		<Message Importance="High" Text="> Compiling DioBatch Shader..." />
+		<Message Importance="High" Text="&gt; Compiling DioBatch Shader..." />
 		<Exec Command="dotnet tool run mgfxc diobatch-effect.fx diobatch-effect.mgfx /Profile:OpenGL" />
 	</Target>
 

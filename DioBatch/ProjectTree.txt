@@ -1,0 +1,6 @@
+﻿|-- diobatch-effect.fx
+|-- diobatch-effect.mgfx
+|-- DioBatch.cs
+|-- DioBatch.csproj
+|-- PaintStyle.cs
+|-- RectangleF.cs

@@ -3,7 +3,18 @@ using System;
 
 namespace DioUI.RectangleFNS;
 
-public enum Corner { TL, TR, BR, BL }
+
+public enum Anchor {
+    Top,
+    Right,
+    Bottom,
+    Left,
+    Center,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight
+}
 public struct RectangleF : IEquatable<RectangleF> {
     private float _x;
     private float _y;
@@ -174,12 +185,17 @@ public struct RectangleF : IEquatable<RectangleF> {
 
         return null;
     }
-    public readonly Vector2 GetCorner(Corner corner) {
-        return corner switch {
-            Corner.TL => TopLeft,
-            Corner.TR => TopRight,
-            Corner.BL => BottomLeft,
-            Corner.BR => BottomRight,
+    public readonly Vector2 GetAnchor(Anchor anchor) {
+        return anchor switch {
+            Anchor.TopLeft => TopLeft,
+            Anchor.TopRight => TopRight,
+            Anchor.BottomLeft => BottomLeft,
+            Anchor.BottomRight => BottomRight,
+            Anchor.Top => new Vector2(X + Width / 2f, Y),
+            Anchor.Bottom => new Vector2(X + Width / 2f, Y + Height),
+            Anchor.Left => new Vector2(X, Y + Height / 2f),
+            Anchor.Right => new Vector2(X + Width, Y + Height / 2f),
+            Anchor.Center => new Vector2(X + Width / 2f, Y + Height / 2f),
             _ => TopLeft
         };
     }
@@ -310,6 +326,34 @@ public struct RectangleF : IEquatable<RectangleF> {
 
         X += (Width - newWidth) / 2f;
         Y += (Height - newHeight) / 2f;
+        Width = newWidth;
+        Height = newHeight;
+    }
+    public void FitAndAlign(float aspectRatio, Anchor alignment = Anchor.Center) {
+        float boundsAspect = Width / Height;
+        float newWidth, newHeight;
+
+        if (boundsAspect > aspectRatio) {
+            newHeight = Height;
+            newWidth = newHeight * aspectRatio;
+        }
+        else {
+            newWidth = Width;
+            newHeight = newWidth / aspectRatio;
+        }
+
+        X += alignment switch {
+            Anchor.Left or Anchor.TopLeft or Anchor.BottomLeft => 0f,
+            Anchor.Right or Anchor.TopRight or Anchor.BottomRight => Width - newWidth,
+            _ => (Width - newWidth) / 2f
+        };
+
+        Y += alignment switch {
+            Anchor.Top or Anchor.TopLeft or Anchor.TopRight => 0f,
+            Anchor.Bottom or Anchor.BottomLeft or Anchor.BottomRight => Height - newHeight,
+            _ => (Height - newHeight) / 2f
+        };
+
         Width = newWidth;
         Height = newHeight;
     }
