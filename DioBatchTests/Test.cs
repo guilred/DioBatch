@@ -142,10 +142,30 @@ public class Test : Game {
         else if (SCENE == 1) {
             performTests((int)((time * 0.25f) / 0.25f) % (5 + 1));
         }
+        else if (SCENE == 2) {
+            GraphicsDevice.Clear(Color.White);
+            _dioBatch.Begin();
+
+            float squiWave = Math.Clamp((wave - 0.1f) / (0.75f - 0.1f), 0f, 1f);
+            var pos = new Vector2(400, 400);
+            var size = new Vector2(500, 300);
+
+            var ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * squiWave;
+            var ps2 = PaintStyle.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * 0.5f;
+            //var ps = Color.Black * 0.1f;
+            //var ps2 = Color.Yellow * squiWave;
+
+            //_dioBatch.DrawRectangle(pos, size, ps, ps2, 20, 40, 0.05f, size / 2);
+            //_dioBatch.DrawCircle(pos + size / 2, ps, ps2, size.X / 2, 20);
+
+            _dioBatch.DrawArc(pos + size / 2, ps, ps2, size.X / 2 - 80, 80, 0, float.Pi * 1.5f, 20);
+
+            _dioBatch.End();
+        }
 
         GraphicsDevice.SetRenderTarget(null);
 
-        var zoomPos = mpos; // Vector2.One * 80 + Vector2.UnitX * 1200;
+        var zoomPos = mpos; // Vector2.One * 80 + Vector2.One * 300 + Vector2.UnitX * 100;
         var zoomMat = _zoomed ? Matrix.CreateTranslation(-zoomPos.X, -zoomPos.Y, 0) * Matrix.CreateScale(4) * Matrix.CreateTranslation(zoomPos.X, zoomPos.Y, 0): Matrix.Identity;
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: zoomMat);
         _spriteBatch.Draw(_mid, _mid.Bounds, Color.White);

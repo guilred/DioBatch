@@ -15,7 +15,7 @@ public struct PaintStyle {
     public bool IsLocal;
     public float OffsetsA;
     public float OffsetsB;
-    public static PaintStyle Solid(Color color) => new() { Type = PaintType.Solid, ColorA = color, ColorB = Color.White };
+    public static PaintStyle Solid(Color color) => new() { Type = PaintType.Solid, ColorA = color, ColorB = color };
     public static PaintStyle Linear(Vector2 start, Vector2 end, Color startColor, Color endColor, bool isLocal = true) {
         return new PaintStyle() {
             Type = PaintType.Linear,
@@ -65,5 +65,5 @@ public struct PaintStyle {
     public static PaintStyle operator *(PaintStyle l, float r) {
         return l with { ColorA = l.ColorA * r, ColorB = l.ColorB * r };
     }
-    public static implicit operator PaintStyle(Color color) => PaintStyle.Solid(color);
+    public static implicit operator PaintStyle(Color color) => Solid(color);
 }

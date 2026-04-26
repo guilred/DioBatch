@@ -34,7 +34,7 @@ public class DioBatch {
 
     // debugging
     private double d_time;
-    private bool d_blink => double.Sin(d_time * 5) > 0;
+    private bool d_blink => double.Sin(d_time * 0.5f) > 0;
     public DioBatch(GraphicsDevice device, ContentManager? content = null, Effect? effect = null) {
         _device = device;
 
@@ -81,7 +81,7 @@ public class DioBatch {
         if (!maintainClipRects) {
             _clipStack.Clear();
         }
-        if (_clipStack.Count > _maxClips) {
+        else if (_clipStack.Count > _maxClips) {
             while (_clipStack.Count > _maxClips) {
                 _clipStack.Pop();
             }
@@ -293,121 +293,107 @@ public class DioBatch {
     public void DrawRectangle(Vector2 position, Vector2 size, PaintStyle fillPaint, PaintStyle borderPaint, float borderThickness, float rounding, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true) {
         if (size.X <= 0 || size.Y <= 0) return;
 
+        float minHalf = MathF.Min(size.X, size.Y) * 0.5f;
+        rounding = Math.Clamp(rounding, 0f, minHalf);
+        borderThickness = Math.Clamp(borderThickness, 0f, minHalf);
 
         fillPaint = transformPaint(fillPaint, position + origin, -origin, rotation);
         borderPaint = transformPaint(borderPaint, position + origin, -origin, rotation);
 
-        float minHalf = Math.Min(size.X, size.Y) * 0.5f;
-        rounding = Math.Clamp(rounding, 0, minHalf);
-        borderThickness = Math.Clamp(borderThickness, 0, minHalf);
-
-        bool bpTr = borderPaint.IsTrspt();
-        bool hasBorder = borderThickness > 0 && !bpTr;
         bool hasFill = borderThickness < minHalf && !fillPaint.IsTrspt();
+        bool hasBorder = borderThickness > 0f && !borderPaint.IsTrspt();
 
-        if (!hasBorder && !hasFill) return;
+        if (!hasFill && !hasBorder) return;
 
-        cornerSegments = rounding > 0 ? Math.Max(1, cornerSegments) : 1;
-        int perimeterVerts = (cornerSegments + 1) * 4;
+        cornerSegments = rounding > 0f ? Math.Max(1, cornerSegments) : 1;
+        int perimVerts = (cornerSegments + 1) * 4;
+        float arcStep = MathHelper.PiOver2 / cornerSegments;
+
+        Span<float> cornerStartAngles = [0f, MathHelper.PiOver2, MathF.PI, MathF.PI * 1.5f];
 
         float outR = rounding;
-        float inR = Math.Max(0, rounding - borderThickness);
-
-        Span<Vector2> outCenters = [
+        Span<Vector2> outerCenters = [
             position + new Vector2(size.X - outR, size.Y - outR),
             position + new Vector2(outR, size.Y - outR),
             position + new Vector2(outR, outR),
             position + new Vector2(size.X - outR, outR),
         ];
-        Span<Vector2> inCenters = [Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero];
 
-        if (!bpTr) {
-            Vector2 inPos = position + new Vector2(borderThickness, borderThickness);
-            Vector2 inSize = size - new Vector2(borderThickness * 2, borderThickness * 2);
-            inCenters[0] = inPos + new Vector2(inSize.X - inR, inSize.Y - inR);
-            inCenters[1] = inPos + new Vector2(inR, inSize.Y - inR);
-            inCenters[2] = inPos + new Vector2(inR, inR);
-            inCenters[3] = inPos + new Vector2(inSize.X - inR, inR);
-        }
+        float inR = MathF.Max(0f, rounding - borderThickness);
+        Vector2 innerPos = position + new Vector2(borderThickness, borderThickness);
+        Vector2 innerSize = size - new Vector2(borderThickness * 2f, borderThickness * 2f);
+        Span<Vector2> innerCenters = [
+            innerPos + new Vector2(innerSize.X - inR, innerSize.Y - inR),
+            innerPos + new Vector2(inR, innerSize.Y - inR),
+            innerPos + new Vector2(inR, inR),
+            innerPos + new Vector2(innerSize.X - inR, inR),
+        ];
 
-        Span<float> startAngles = [0, MathHelper.PiOver2, float.Pi, float.Pi * 1.5f];
-        float step = MathHelper.PiOver2 / cornerSegments;
-
-        float rotSin = 0, rotCos = 1;
+        Vector2 pivot = position + origin;
         bool hasRotation = rotation != 0f;
-        if (hasRotation) {
-            rotSin = MathF.Sin(rotation);
-            rotCos = MathF.Cos(rotation);
+        float rotSin = 0f, rotCos = 1f;
+        if (hasRotation) (rotSin, rotCos) = MathF.SinCos(rotation);
+
+        Vector2 Rotate(Vector2 p) {
+            if (!hasRotation) return p;
+            float dx = p.X - pivot.X, dy = p.Y - pivot.Y;
+            return new Vector2(
+                pivot.X + dx * rotCos - dy * rotSin,
+                pivot.Y + dx * rotSin + dy * rotCos);
         }
 
-        Vector2 transform(Vector2 p) {
-            if (!hasRotation) return p;
-            float rx = p.X - (position.X + origin.X);
-            float ry = p.Y - (position.Y + origin.Y);
-            return new Vector2(
-                position.X + origin.X + rx * rotCos - ry * rotSin,
-                position.Y + origin.Y + rx * rotSin + ry * rotCos
-            );
-        }
+        PrimitiveVertex Vert(Vector2 p, PaintStyle paint) => new(new Vector3(p, 0f), paint, _currentClip.Rect, _currentClip.Params);
 
         if (hasFill) {
-            ensureCapacity(perimeterVerts + 1, perimeterVerts * 3);
-            int startIdx = _vertexCount;
-            _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(transform(position + size * 0.5f), 0), fillPaint, _currentClip.Rect, _currentClip.Params);
+            ensureCapacity(perimVerts + 1, perimVerts * 3);
+            int baseIdx = _vertexCount;
 
-            Span<Vector2> fillCenters = !bpTr ? inCenters : outCenters;
-            float fillR = bpTr ? inR : outR;
+            _vertices[_vertexCount++] = Vert(Rotate(innerPos + innerSize * 0.5f), fillPaint);
 
-            int vertCounter = 0;
             for (int c = 0; c < 4; c++) {
                 for (int i = 0; i <= cornerSegments; i++) {
-                    float angle = startAngles[c] + i * step;
+                    float angle = cornerStartAngles[c] + i * arcStep;
                     (float sin, float cos) = MathF.SinCos(angle);
-                    Vector2 pos = fillCenters[c] + new Vector2(cos, sin) * fillR;
-
-                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(transform(pos), 0), fillPaint, _currentClip.Rect, _currentClip.Params);
-
-                    _indices[_indexCount++] = (short)startIdx;
-                    _indices[_indexCount++] = (short)(startIdx + vertCounter + 1);
-                    _indices[_indexCount++] = (short)(startIdx + (vertCounter + 1) % perimeterVerts + 1);
-                    vertCounter++;
+                    _vertices[_vertexCount++] = Vert(Rotate(innerCenters[c] + new Vector2(cos, sin) * inR), fillPaint);
                 }
+            }
+
+            for (int v = 0; v < perimVerts; v++) {
+                _indices[_indexCount++] = (short)baseIdx;
+                _indices[_indexCount++] = (short)(baseIdx + 1 + v);
+                _indices[_indexCount++] = (short)(baseIdx + 1 + (v + 1) % perimVerts);
             }
         }
 
         if (hasBorder) {
-            ensureCapacity(perimeterVerts * 2, perimeterVerts * 6);
-            int startIdx = _vertexCount;
-            int vertCounter = 0;
+            ensureCapacity(perimVerts * 2, perimVerts * 6);
+            int baseIdx = _vertexCount;
 
             for (int c = 0; c < 4; c++) {
                 for (int i = 0; i <= cornerSegments; i++) {
-                    float angle = startAngles[c] + i * step;
+                    float angle = cornerStartAngles[c] + i * arcStep;
                     (float sin, float cos) = MathF.SinCos(angle);
                     Vector2 dir = new(cos, sin);
 
-                    Vector2 inPos = inCenters[c] + dir * inR;
-                    Vector2 outPos = outCenters[c] + dir * outR;
-
-                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(transform(inPos), 0), borderPaint, _currentClip.Rect, _currentClip.Params);
-                    _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(transform(outPos), 0), borderPaint, _currentClip.Rect, _currentClip.Params);
-
-                    int nextI = (vertCounter + 1) % perimeterVerts;
-                    int v0 = startIdx + vertCounter * 2;
-                    int v1 = v0 + 1;
-                    int v2 = startIdx + nextI * 2;
-                    int v3 = v2 + 1;
-
-                    _indices[_indexCount++] = (short)v0;
-                    _indices[_indexCount++] = (short)v1;
-                    _indices[_indexCount++] = (short)v2;
-
-                    _indices[_indexCount++] = (short)v1;
-                    _indices[_indexCount++] = (short)v3;
-                    _indices[_indexCount++] = (short)v2;
-
-                    vertCounter++;
+                    _vertices[_vertexCount++] = Vert(Rotate(innerCenters[c] + dir * inR), borderPaint);
+                    _vertices[_vertexCount++] = Vert(Rotate(outerCenters[c] + dir * outR), borderPaint);
                 }
+            }
+
+            for (int v = 0; v < perimVerts; v++) {
+                int next = (v + 1) % perimVerts;
+                int inner0 = baseIdx + v * 2;
+                int outer0 = baseIdx + v * 2 + 1;
+                int inner1 = baseIdx + next * 2;
+                int outer1 = baseIdx + next * 2 + 1;
+
+                _indices[_indexCount++] = (short)inner0;
+                _indices[_indexCount++] = (short)outer0;
+                _indices[_indexCount++] = (short)inner1;
+
+                _indices[_indexCount++] = (short)outer0;
+                _indices[_indexCount++] = (short)outer1;
+                _indices[_indexCount++] = (short)inner1;
             }
         }
 
@@ -416,17 +402,12 @@ public class DioBatch {
         Vector2 aaPivot = position + origin;
 
         if (hasBorder) {
-            addRectFringe(outCenters, outR, cornerSegments, borderPaint, true, hasRotation, rotSin, rotCos, aaPivot);
-            bool bpOp = borderPaint.IsOpaque();
-            if (bpOp || !hasFill) {
-                addRectFringe(inCenters, inR, cornerSegments, borderPaint, false, hasRotation, rotSin, rotCos, aaPivot);
-            }
-            if (!bpOp && fillPaint.IsOpaque()) {
-                addRectFringe(inCenters, inR, cornerSegments, fillPaint, true, hasRotation, rotSin, rotCos, aaPivot);
-            }
+            addRectFringe(outerCenters, outR, cornerSegments, borderPaint, true, hasRotation, rotSin, rotCos, aaPivot);
+            addRectFringe(innerCenters, inR, cornerSegments, borderPaint, false, hasRotation, rotSin, rotCos, aaPivot);
         }
-        else if (hasFill) {
-            addRectFringe(outCenters, inR, cornerSegments, fillPaint, true, hasRotation, rotSin, rotCos, aaPivot);
+        if (hasFill) {
+            float borderA = byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f;
+            addRectFringe(innerCenters, inR, cornerSegments, fillPaint * (1 - borderA), true, hasRotation, rotSin, rotCos, aaPivot);
         }
     }
 
@@ -516,68 +497,63 @@ public class DioBatch {
             _indices[_indexCount++] = (short)v2;
         }
     }
-    public void DrawArc(Vector2 center, PaintStyle fillPaint, PaintStyle borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true) {
-        outerRadius += innerRadius;
+    public void DrawArc( Vector2 center, PaintStyle fillPaint, PaintStyle borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true) {
+        if (outerRadius <= 0f || segments < 3) return;
 
-        if (outerRadius < innerRadius) {
-            (innerRadius, outerRadius) = (outerRadius, innerRadius);
-        }
-        float thickness = outerRadius - innerRadius;
-        if (thickness <= 0 || segments < 3) return;
-
-        float midRadius = (innerRadius + outerRadius) * 0.5f;
-        float halfThick = thickness * 0.5f;
+        float outerEdge = innerRadius + outerRadius;
+        float midRadius = innerRadius + outerRadius * 0.5f;
+        float halfThick = outerRadius * 0.5f;
 
         float borderThick = Math.Min(borderThickness, halfThick);
-        float fillHalfThick = Math.Max(0, halfThick - borderThick);
+        float fillHalfThick = Math.Max(0f, halfThick - borderThick);
 
-        bool hasBorder = borderThick > 0 && !borderPaint.IsTrspt();
-        bool hasFill = fillHalfThick > 0 && !fillPaint.IsTrspt();
+        bool hasBorder = borderThick > 0f && !borderPaint.IsTrspt();
+        bool hasFill = fillHalfThick > 0f && !fillPaint.IsTrspt();
 
-        if (!(borderThick > 0) && !hasFill) return;
+        if (!hasBorder && !hasFill) return;
 
-        float totalRadius = innerRadius + outerRadius;
-        fillPaint = transformPaint(fillPaint, center, -Vector2.One * totalRadius, 0f);
-        borderPaint = transformPaint(borderPaint, center, -Vector2.One * totalRadius, 0f);
+        fillPaint = transformPaint(fillPaint, center, -Vector2.One * (innerRadius + outerEdge), 0f);
+        borderPaint = transformPaint(borderPaint, center, -Vector2.One * (innerRadius + outerEdge), 0f);
 
-        Vector2 startCenter = center + new Vector2(MathF.Cos(startAngle), MathF.Sin(startAngle)) * midRadius;
-        Vector2 endCenter = center + new Vector2(MathF.Cos(endAngle), MathF.Sin(endAngle)) * midRadius;
+        Vector2 startCapCenter = center + new Vector2(MathF.Cos(startAngle), MathF.Sin(startAngle)) * midRadius;
+        Vector2 endCapCenter = center + new Vector2(MathF.Cos(endAngle), MathF.Sin(endAngle)) * midRadius;
 
         int capSegments = Math.Max(3, segments / 4);
 
-        bool fpOp = fillPaint.IsOpaque();
-        if (hasBorder ) {
-            if (enableAA) {
-                addCircleFringe(center, midRadius + halfThick, startAngle, endAngle, borderPaint, segments, true);
-                addCircleFringe(center, midRadius - halfThick, startAngle, endAngle, borderPaint, segments, false);
-                addCircleFringe(startCenter, halfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments, true);
-                addCircleFringe(endCenter, halfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments, true);
-                if (!fpOp && borderPaint.IsOpaque() || !hasFill) {
-                    addCircleFringe(center, midRadius - fillHalfThick, startAngle, endAngle, borderPaint, segments, true);
-                    addCircleFringe(center, midRadius + fillHalfThick, startAngle, endAngle, borderPaint, segments, false);
-                    addCircleFringe(startCenter, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments, false);
-                    addCircleFringe(endCenter, fillHalfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments, false);
-                }
-            }
+        if (hasBorder) {
             addRingSegment(center, midRadius + fillHalfThick, midRadius + halfThick, startAngle, endAngle, borderPaint, segments);
             addRingSegment(center, midRadius - halfThick, midRadius - fillHalfThick, startAngle, endAngle, borderPaint, segments);
-            addRingSegment(startCenter, fillHalfThick, halfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments);
-            addRingSegment(endCenter, fillHalfThick, halfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments);
+            addRingSegment(startCapCenter, fillHalfThick, halfThick, startAngle + MathF.PI, startAngle + MathF.Tau, borderPaint, capSegments);
+            addRingSegment(endCapCenter, fillHalfThick, halfThick, endAngle, endAngle + MathF.PI, borderPaint, capSegments);
         }
 
         if (hasFill) {
-            if (!hasBorder || fpOp) {
-                addCircleFringe(center, midRadius + fillHalfThick, startAngle, endAngle, fillPaint, segments, true);
-                addCircleFringe(center, midRadius - fillHalfThick, startAngle, endAngle, fillPaint, segments, false);
-                addCircleFringe(startCenter, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, fillPaint, capSegments, true);
-                addCircleFringe(endCenter, fillHalfThick, endAngle, endAngle + float.Pi, fillPaint, capSegments, true);
-            }
             addRingSegment(center, midRadius - fillHalfThick, midRadius + fillHalfThick, startAngle, endAngle, fillPaint, segments);
-            addRingSegment(startCenter, 0, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, fillPaint, capSegments);
-            addRingSegment(endCenter, 0, fillHalfThick, endAngle, endAngle + float.Pi, fillPaint, capSegments);
+            addRingSegment(startCapCenter, 0f, fillHalfThick, startAngle + MathF.PI, startAngle + MathF.Tau, fillPaint, capSegments);
+            addRingSegment(endCapCenter, 0f, fillHalfThick, endAngle, endAngle + MathF.PI, fillPaint, capSegments);
         }
 
-        
+        if (enableAA) {
+            if (hasBorder) {
+                addCircleFringe(center, midRadius + halfThick, startAngle, endAngle, borderPaint, segments, true);
+                addCircleFringe(center, midRadius - halfThick, startAngle, endAngle, borderPaint, segments, false);
+                addCircleFringe(startCapCenter, halfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments, true);
+                addCircleFringe(endCapCenter, halfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments, true);
+
+                addCircleFringe(center, midRadius - fillHalfThick, startAngle, endAngle, borderPaint, segments, true);
+                addCircleFringe(center, midRadius + fillHalfThick, startAngle, endAngle, borderPaint, segments, false);
+                addCircleFringe(startCapCenter, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, borderPaint, capSegments, false);
+                addCircleFringe(endCapCenter, fillHalfThick, endAngle, endAngle + float.Pi, borderPaint, capSegments, false);
+            }
+            if (hasFill) {
+                float borderA = byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f;
+                var scaledFill = fillPaint * (1 - borderA);
+                addCircleFringe(center, midRadius + fillHalfThick, startAngle, endAngle, scaledFill, segments, true);
+                addCircleFringe(center, midRadius - fillHalfThick, startAngle, endAngle, scaledFill, segments, false);
+                addCircleFringe(startCapCenter, fillHalfThick, startAngle + float.Pi, startAngle + float.Tau, scaledFill, capSegments, true);
+                addCircleFringe(endCapCenter, fillHalfThick, endAngle, endAngle + float.Pi, scaledFill, capSegments, true);
+            }
+        }
     }
 
     public void DrawArc(Vector2 center, Color fillColor, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true)
@@ -615,16 +591,11 @@ public class DioBatch {
 
         if (hasBorder) {
             addCircleFringe(center, radius, 0, float.Tau, borderPaint, segments, true);
-            bool bpOp = borderPaint.IsOpaque();
-            if (bpOp || !hasFill) {
-                addCircleFringe(center, innerRadius, 0, float.Tau, borderPaint, segments, false);
-            }
-            if (!bpOp && fillPaint.IsOpaque()) {
-                addCircleFringe(center, innerRadius, 0, float.Tau, fillPaint, segments, true);
-            }
+            addCircleFringe(center, innerRadius, 0, float.Tau, borderPaint, segments, false);
         }
-        else if (hasFill) {
-            addCircleFringe(center, innerRadius, 0, float.Tau, fillPaint, segments, true);
+        if (hasFill) {
+            float borderA = byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f;
+            addCircleFringe(center, innerRadius, 0, float.Tau, fillPaint * (1 - borderA), segments, true);
         }
     }
 
