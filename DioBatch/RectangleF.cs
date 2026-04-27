@@ -49,6 +49,8 @@ public struct RectangleF : IEquatable<RectangleF> {
 
     public readonly float Bottom => _y + _height;
 
+    public readonly float CenterX => _x + _width / 2;
+    public readonly float CenterY => _y + _height / 2;
     public Vector2 Position {
         readonly get { return new Vector2(_x, _y); }
         set {

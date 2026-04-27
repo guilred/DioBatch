@@ -63,7 +63,7 @@ public class Test : Game {
             GraphicsDevice.Clear(new Color(0, 191, 255));
 
             _dioBatch.Begin();
-            var bgps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitY * 900, new Color(0, 191, 255), Color.Blue).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
+            var bgps = Paint.Linear(Vector2.Zero, Vector2.UnitY * 900, new Color(0, 191, 255), Color.Blue).SetEasing(Paint.EasingType.EaseIn, 1.5f);
             _dioBatch.FillRectangle(Vector2.Zero, new(1600, 900), bgps);
 
             var clipRect = new RectangleF(mpos.X - 200, mpos.Y - 200 - 100 * wave, 400, 400 + 200 * wave);
@@ -79,7 +79,7 @@ public class Test : Game {
                 if (pos.X > 2000) pos.X = pos.X % 2000 - 300;
                 if (pos.Y > 1200) pos.Y = pos.Y % 1200 - 300;
                 var size = new Vector2(200 + 50 * nextF(), 50 + 50 * nextF()) * depth;
-                var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitY * size.Y, Color.White, Color.LightBlue).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
+                var ps = Paint.Linear(Vector2.Zero, Vector2.UnitY * size.Y, Color.White, Color.LightBlue).SetEasing(Paint.EasingType.EaseIn, 1.5f);
                 _dioBatch.FillRectangle(pos, size, ps, 10, dir);
                 depth += 0.8f / 100;
                 if (i == 49) {
@@ -101,7 +101,7 @@ public class Test : Game {
             _dioBatch.PopClip();
             var sunCenter = new Vector2(800, 450);
             var sunR = 300 - 30 * wave;
-            var sunG = PaintStyle.Radial(Vector2.One * sunR, Vector2.UnitX * sunR, Color.Yellow, Color.LightYellow).SetEasing(PaintStyle.EasingType.EaseIn, 4);
+            var sunG = Paint.Radial(Vector2.One * sunR, Vector2.UnitX * sunR, Color.Yellow, Color.LightYellow).SetEasing(Paint.EasingType.EaseIn, 4);
             _dioBatch.FillCircle(sunCenter, sunG, sunR, 64);
             for (int i = 0; i < 20; i++) {
                 if (i % 2 == 0) {
@@ -115,7 +115,7 @@ public class Test : Game {
                 var start = sunCenter + Vector2.Rotate(Vector2.UnitX * (360 - 30 * wave), angle);
                 var bladeLenght = 200 - 30 * float.Sin(float.Tau * t + time * 2);
                 var end = sunCenter + Vector2.Rotate(Vector2.UnitX * (320 + bladeLenght), angle);
-                var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitX * bladeLenght, Color.Yellow, Color.LightYellow).SetEasing(PaintStyle.EasingType.EaseIn, 1.5f);
+                var ps = Paint.Linear(Vector2.Zero, Vector2.UnitX * bladeLenght, Color.Yellow, Color.LightYellow).SetEasing(Paint.EasingType.EaseIn, 1.5f);
                 _dioBatch.FillLine(start, end, ps, 50);
             }
 
@@ -129,7 +129,7 @@ public class Test : Game {
                 for (int i = 0; i < 10; i++) {
                     var iwave = float.Pow(float.Sin(time * 0.5f * float.Pi + i * 0.2f + (j * 0.2f - 0.3f)), 2);
                     var pos = new Vector2(160 * i + 80, 780 + (j * 35) - (80 - j * 10) * iwave);
-                    var ps = PaintStyle.Linear(Vector2.Zero, Vector2.UnitX * (85 + (j * 10)) * 2, bc(Color.Green, 0.5f - j * 0.1f), bc(Color.Green, 1 - j * 0.1f));
+                    var ps = Paint.Linear(Vector2.Zero, Vector2.UnitX * (85 + (j * 10)) * 2, bc(Color.Green, 0.5f - j * 0.1f), bc(Color.Green, 1 - j * 0.1f));
                     _dioBatch.FillCircle(pos, ps, 85 + (j * 10));
                 }
             }
@@ -147,25 +147,23 @@ public class Test : Game {
             _dioBatch.Begin();
 
             float squiWave = Math.Clamp((wave - 0.1f) / (0.75f - 0.1f), 0f, 1f);
-            var pos = new Vector2(400, 400);
-            var size = new Vector2(500, 300);
+            var pos = new Vector2(200, 200);
+            var size = new Vector2(500, 400);
 
-            var ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * squiWave;
-            var ps2 = PaintStyle.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * 0.5f;
-            //var ps = Color.Black * 0.1f;
-            //var ps2 = Color.Yellow * squiWave;
+            var ps = Paint.LinearNorm(Vector2.UnitX * 0.5f, Vector2.UnitX * 0.5f + Vector2.UnitY, Color.Blue, Color.Magenta).SetOffsets(0.75f, 0.25f) * squiWave;
+            var ps2 = Paint.LinearNorm(Vector2.UnitY * 0.5f, Vector2.UnitY * 0.5f + Vector2.UnitX, Color.Green, Color.Red).SetOffsets(0.5f, 0.5f) * squiWave;
 
-            //_dioBatch.DrawRectangle(pos, size, ps, ps2, 20, 40, 0.05f, size / 2);
-            //_dioBatch.DrawCircle(pos + size / 2, ps, ps2, size.X / 2, 20);
-
-            _dioBatch.DrawArc(pos + size / 2, ps, ps2, size.X / 2 - 80, 80, 0, float.Pi * 1.5f, 20);
+            //_dioBatch.DrawRectangle(pos, size, ps, ps2, 0, 40);
+            //_dioBatch.DrawCircle(pos + size / 2, ps, ps2, size.X / 2, 50);
+            _dioBatch.DrawArc(pos + size / 2, ps, ps2, size.X / 2 - 80, 80, 0, float.Pi * 1.96f, 20);
+            //_dioBatch.DrawLine(pos, pos + size, ps, ps2, 50, 10);
 
             _dioBatch.End();
         }
 
         GraphicsDevice.SetRenderTarget(null);
 
-        var zoomPos = mpos; // Vector2.One * 80 + Vector2.One * 300 + Vector2.UnitX * 100;
+        var zoomPos = mpos;// Vector2.One * 80 + Vector2.One * 300 + Vector2.UnitX * 100;
         var zoomMat = _zoomed ? Matrix.CreateTranslation(-zoomPos.X, -zoomPos.Y, 0) * Matrix.CreateScale(4) * Matrix.CreateTranslation(zoomPos.X, zoomPos.Y, 0): Matrix.Identity;
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: zoomMat);
         _spriteBatch.Draw(_mid, _mid.Bounds, Color.White);
@@ -192,23 +190,23 @@ public class Test : Game {
 
         _dioBatch.Begin();
 
-        var ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * m1;
-        var ps2 = PaintStyle.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * m2;
+        var ps = Paint.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * m1;
+        var ps2 = Paint.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * m2;
         _dioBatch.DrawRectangle(pos, size, ps, ps2, 20, 40, 0.05f, size / 2);
         step();
 
-        ps = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta) * m1;
-        ps2 = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Magenta, Color.Blue) * m2;
+        ps = Paint.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta) * m1;
+        ps2 = Paint.Linear(Vector2.Zero, Vector2.One * size.X, Color.Magenta, Color.Blue) * m2;
         _dioBatch.DrawCircle(pos + size / 2, ps, ps2, size.X / 2, 20);
         step();
 
-        ps = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta) * m1;
-        ps2 = PaintStyle.Linear(Vector2.Zero, Vector2.One * size.X, Color.Magenta, Color.Blue) * m2;
+        ps = Paint.Linear(Vector2.Zero, Vector2.One * size.X, Color.Blue, Color.Magenta) * m1;
+        ps2 = Paint.Linear(Vector2.Zero, Vector2.One * size.X, Color.Magenta, Color.Blue) * m2;
         _dioBatch.DrawArc(pos + size / 2, ps, ps2, size.X / 2 - 80, 80, 0, float.Pi * 1.5f, 20);
         step();
         
-        ps = PaintStyle.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * m1;
-        ps2 = PaintStyle.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * m2;
+        ps = Paint.Linear(Vector2.Zero, size, Color.Blue, Color.Magenta) * m1;
+        ps2 = Paint.Linear(Vector2.Zero, size, Color.Magenta, Color.Blue) * m2;
         _dioBatch.DrawLine(pos, pos + size, ps, ps2, 50, 5);
         step();
 
