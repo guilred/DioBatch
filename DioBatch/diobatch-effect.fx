@@ -1,10 +1,10 @@
 ﻿#if OPENGL
-	#define SV_POSITION POSITION
-	#define VS_SHADERMODEL vs_3_0
-	#define PS_SHADERMODEL ps_3_0
+#define SV_POSITION POSITION
+#define VS_SHADERMODEL vs_3_0
+#define PS_SHADERMODEL ps_3_0
 #else
-	#define VS_SHADERMODEL vs_4_0_level_9_1
-	#define PS_SHADERMODEL ps_4_0_level_9_1
+#define VS_SHADERMODEL vs_4_0_level_9_1
+#define PS_SHADERMODEL ps_4_0_level_9_1
 #endif
 
 float4x4 Projection;
@@ -38,8 +38,9 @@ struct VSOutput {
     float4 ColorB : COLOR1;
     float4 TexCoords : TEXCOORD2;
     float4 GradientCoords : TEXCOORD3;
-    float3 PaintParams : TEXCOORD4;
-    float2 ScreenPos : TEXCOORD5;
+    float2 PaintOffsets : TEXCOORD4;
+    float3 PaintParams : TEXCOORD5;
+    float2 ScreenPos : TEXCOORD6;
 };
 
 VSOutput VS(VSInput input) {
@@ -51,7 +52,13 @@ VSOutput VS(VSInput input) {
     output.ColorB = input.ColorB;
     output.TexCoords = input.TexCoords;
     output.GradientCoords = input.GradientCoords;
-    output.PaintParams = input.PaintParams;
+    output.PaintOffsets = input.PaintParams.xy;
+    float packedData = input.PaintParams.z;
+    float paintType = floor(packedData / 1000.0);
+    float rem = packedData - (paintType * 1000.0);
+    float easingType = floor(rem / 100.0);
+    float power = rem - (easingType * 100.0);
+    output.PaintParams = float3(paintType, easingType, power);
     output.ScreenPos = input.Position.xy;
     return output;
 }
@@ -60,8 +67,7 @@ float2 Rotate(float2 p, float2 pivot, float angle) {
     float s, c;
     sincos(angle, s, c);
     p -= pivot;
-    p = float2(p.x * c - p.y * s,
-                p.x * s + p.y * c);
+    p = float2(p.x * c - p.y * s, p.x * s + p.y * c);
     return p + pivot;
 }
 
@@ -71,12 +77,19 @@ float RoundedRectSDF(float2 p, float2 center, float2 halfSize, float radius) {
 }
 
 float ApplyEasing(float t, float easingType, float power) {
-    if (easingType == 1.0)
-        return pow(t, power); else if (easingType == 2.0)
-        return 1.0 - pow(1.0 - t, power); else if (easingType == 3.0) {
-        if (t < 0.5)
-            return 0.5 * pow(2.0 * t, power); else
+    [branch]
+    if (easingType < 0.25) {
+        return t;
+    } else if (easingType < 1.25) {
+        return pow(t, power);
+    } else if (easingType < 2.25) {
+        return 1.0 - pow(1.0 - t, power);
+    } else if (easingType < 3.25) {
+        if (t < 0.5) {
+            return 0.5 * pow(2.0 * t, power);
+        } else {
             return 1.0 - 0.5 * pow(2.0 * (1.0 - t), power);
+        }
     }
     return t;
 }
@@ -107,18 +120,16 @@ float4 PS(VSOutput input) : SV_TARGET {
     }
 
     // 2- Gradient evaluation
-    float offsetA = input.PaintParams.x;
-    float offsetB = input.PaintParams.y;
-    float packedData = input.PaintParams.z;
+    float offsetA = input.PaintOffsets.x;
+    float offsetB = input.PaintOffsets.y;
 
-    float paintType = floor(packedData / 1000.0);
-    float rem = packedData - (paintType * 1000.0);
-    float easingType = floor(rem / 100.0);
-    float power = rem - (easingType * 100.0);
+    float paintType = input.PaintParams.x;
+    float easingType = input.PaintParams.y;
+    float power = input.PaintParams.z;
 
     float4 gradientColor = input.ColorA;
     [branch]
-    if (paintType == 1.0) {
+    if (paintType < 1.25) {
         float2 start = input.GradientCoords.xy;
         float2 end = input.GradientCoords.zw;
         float2 dir = end - start;
@@ -129,7 +140,7 @@ float4 PS(VSOutput input) : SV_TARGET {
         t = ApplyEasing(t, easingType, power);
 
         gradientColor = lerp(input.ColorA, input.ColorB, t);
-    } else if (paintType == 2.0) {
+    } else if (paintType < 2.25) {
         float2 center = input.GradientCoords.xy;
         float2 edge = input.GradientCoords.zw;
         float radius = distance(center, edge);
@@ -148,15 +159,24 @@ float4 PS(VSOutput input) : SV_TARGET {
     if (input.TexCoords.z >= 0.0) {
         int texIndex = (int) (input.TexCoords.z + 0.1);
         float2 uv = input.TexCoords.xy;
-
-        if      (texIndex == 0) texColor = tex2D(Sampler0, uv);
-        else if (texIndex == 1) texColor = tex2D(Sampler1, uv);
-        else if (texIndex == 2) texColor = tex2D(Sampler2, uv);
-        else if (texIndex == 3) texColor = tex2D(Sampler3, uv);
-        else if (texIndex == 4) texColor = tex2D(Sampler4, uv);
-        else if (texIndex == 5) texColor = tex2D(Sampler5, uv);
-        else if (texIndex == 6) texColor = tex2D(Sampler6, uv);
-        else if (texIndex == 7) texColor = tex2D(Sampler7, uv);
+        [branch]
+        if (texIndex == 0) {
+            texColor = tex2D(Sampler0, uv); 
+        } else if (texIndex == 1) {
+            texColor = tex2D(Sampler1, uv);
+        } else if (texIndex == 2) {
+            texColor = tex2D(Sampler2, uv);
+        } else if (texIndex == 3) {
+            texColor = tex2D(Sampler3, uv);
+        } else if (texIndex == 4) {
+            texColor = tex2D(Sampler4, uv);
+        } else if (texIndex == 5) {
+            texColor = tex2D(Sampler5, uv);
+        } else if (texIndex == 6) {
+            texColor = tex2D(Sampler6, uv);
+        } else if (texIndex == 7) {
+            texColor = tex2D(Sampler7, uv);
+        }
     }
     
     // 4- Final composition
@@ -166,6 +186,6 @@ float4 PS(VSOutput input) : SV_TARGET {
 technique Primitive {
     pass P0 {
         VertexShader = compile VS_SHADERMODEL VS();
-        PixelShader  = compile PS_SHADERMODEL PS();
+        PixelShader = compile PS_SHADERMODEL PS();
     }
 }

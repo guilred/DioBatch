@@ -14,6 +14,7 @@ public class Test : Game {
     private DioBatch _dioBatch;
     private Texture2D _mg;
     private Texture2D _gr;
+    private Texture2D _dg;
     private RenderTarget2D _mid;
     public Test() {
         _graphics = new GraphicsDeviceManager(this);
@@ -35,6 +36,7 @@ public class Test : Game {
         _dioBatch = new DioBatch(GraphicsDevice);
         _mg = Content.Load<Texture2D>("mg");
         _gr = Content.Load<Texture2D>("gr");
+        _dg = Content.Load<Texture2D>("doggo");
         _mid = new RenderTarget2D(GraphicsDevice, 1600, 900);
     }
     private bool _zoomed;
@@ -53,7 +55,7 @@ public class Test : Game {
     protected override void Draw(GameTime gameTime) {
         if (!IsActive) return;
 
-        int SCENE = 0;
+        int SCENE = 2;
         float time = (float)gameTime.TotalGameTime.TotalSeconds;
         var wave = float.Pow(float.Sin(time * 0.25f * float.Pi), 2);
         var mpos = Mouse.GetState().Position.ToVector2();
@@ -150,13 +152,14 @@ public class Test : Game {
             var pos = new Vector2(200, 200);
             var size = new Vector2(500, 400);
 
-            var ps = Paint.LinearNorm(Vector2.UnitX * 0.5f, Vector2.UnitX * 0.5f + Vector2.UnitY, Color.Blue, Color.Magenta).SetOffsets(0.75f, 0.25f) * squiWave;
-            var ps2 = Paint.LinearNorm(Vector2.UnitY * 0.5f, Vector2.UnitY * 0.5f + Vector2.UnitX, Color.Green, Color.Red).SetOffsets(0.5f, 0.5f) * squiWave;
+            var ps = Paint.LinearNorm(Vector2.Zero, Vector2.UnitX, Color.Blue, Color.Magenta) * squiWave;
+            //var ps2 = Paint.LinearNorm(Vector2.UnitY * 0.5f, Vector2.UnitY * 0.5f + Vector2.UnitX, Color.Green, Color.Red).SetOffsets(0.5f, 0.5f) * squiWave;
 
             //_dioBatch.DrawRectangle(pos, size, ps, ps2, 0, 40);
             //_dioBatch.DrawCircle(pos + size / 2, ps, ps2, size.X / 2, 50);
-            _dioBatch.DrawArc(pos + size / 2, ps, ps2, size.X / 2 - 80, 80, 0, float.Pi * 1.96f, 20);
+            //_dioBatch.DrawArc(pos + size / 2, ps, ps2, size.X / 2 - 80, 80, 0, float.Pi * 1.96f, 20);
             //_dioBatch.DrawLine(pos, pos + size, ps, ps2, 50, 10);
+            _dioBatch.DrawTexture(_dg, pos, size, null, ps, rounding: 40);
 
             _dioBatch.End();
         }

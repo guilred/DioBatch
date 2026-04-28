@@ -693,6 +693,8 @@ public class DioBatch {
         Paint actualTint = tint ?? Paint.Solid(Color.White);
         if (actualTint.IsTrspt()) return;
 
+        actualTint = transformPaint(actualTint, position + origin, -origin, rotation, size);
+
         float minHalf = Math.Min(actualSize.X, actualSize.Y) * 0.5f;
         rounding = Math.Clamp(rounding, 0, minHalf);
         cornerSegments = rounding > 0 ? Math.Max(1, cornerSegments) : 1;
@@ -843,7 +845,7 @@ public class DioBatch {
             ColorB = paint.ColorB;
             TexCoords = -Vector4.UnitZ;
             GradientCoords = new Vector4(paint.Start.X, paint.Start.Y, paint.End.X, paint.End.Y);
-            float safePower = Math.Clamp(paint.EasingPower, 0f, 99.9f);
+            float safePower = float.Clamp(paint.EasingPower, 0f, 99.9f);
             float packedData = ((float)paint.Type * 1000f) + ((float)paint.Easing * 100f) + safePower;
             PaintParams = new Vector3(paint.OffsetA, paint.OffsetB, packedData);
         }
@@ -856,8 +858,8 @@ public class DioBatch {
             ColorB = paint.ColorB;
             TexCoords = new Vector4(texCoords.X, texCoords.Y, index, 0);
             GradientCoords = new Vector4(paint.Start.X, paint.Start.Y, paint.End.X, paint.End.Y);
-            float safePower = Math.Clamp(paint.EasingPower, 0f, 99.9f);
-            float packedData = (3f * 1000f) + ((float)paint.Easing * 100f) + safePower;
+            float safePower = float.Clamp(paint.EasingPower, 0f, 99.9f);
+            float packedData = ((float)paint.Type * 1000f) + ((float)paint.Easing * 100f) + safePower;
             PaintParams = new Vector3(paint.OffsetA, paint.OffsetB, packedData);
         }
 

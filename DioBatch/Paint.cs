@@ -65,13 +65,13 @@ public struct Paint {
             OffsetB = 1f
         };
     }
-    public Paint SetOffsets(float offsetA = 0f, float offsetB = 1f, bool usePixelOffsets = false) {
+    public Paint SetOffsets(float offsetA = 0f, float offsetB = 0f, bool usePixelOffsets = false) {
         if (!usePixelOffsets) {
-            (OffsetA, OffsetB) = (offsetA, offsetB);
+            (OffsetA, OffsetB) = (offsetA, 1 - offsetB);
             return this;
         }
         if (isNormalized) {
-            (OffsetA, OffsetB) = (offsetA, offsetB);
+            (OffsetA, OffsetB) = (offsetA, 1 - offsetB);
             isPixelOffsets = true;
             return this;
         }
