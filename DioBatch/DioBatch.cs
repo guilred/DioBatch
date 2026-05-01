@@ -407,7 +407,7 @@ public class DioBatch {
             addRectFringe(innerCenters, inR, cornerSegments, borderPaint, false, hasRotation, rotSin, rotCos, aaPivot);
         }
         if (hasFill) {
-            float borderA = byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f;
+            float borderA = hasBorder? byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f : 0;
             addRectFringe(innerCenters, inR, cornerSegments, fillPaint * (1 - borderA), true, hasRotation, rotSin, rotCos, aaPivot);
         }
     }
@@ -576,7 +576,7 @@ public class DioBatch {
                 }
             }
             if (hasFill) {
-                float borderA = byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f;
+                float borderA = hasBorder? byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f : 0;
                 var scaledFill = fillPaint * (1 - borderA);
                 addCircleFringe(center, midRadius + fillHalfThick, startAngle, endAngle, scaledFill, segments, true);
                 addCircleFringe(center, midRadius - fillHalfThick, startAngle, endAngle, scaledFill, segments, false);
@@ -627,7 +627,7 @@ public class DioBatch {
             addCircleFringe(center, innerRadius, 0, float.Tau, borderPaint, segments, false);
         }
         if (hasFill) {
-            float borderA = byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f;
+            float borderA = hasBorder ? byte.Max(borderPaint.ColorA.A, borderPaint.ColorB.A) / 255f : 0;
             addCircleFringe(center, innerRadius, 0, float.Tau, fillPaint * (1 - borderA), segments, true);
         }
     }
@@ -685,8 +685,75 @@ public class DioBatch {
         paint.End = new Vector2(p2.X, p2.Y);
         return paint;
     }
+    private void addTextureFringe(Span<Vector2> centers, float radius, int cornerSegments, Paint paint, bool hasRotation, float rotSin, float rotCos, Vector2 pivot, int texIndex, Vector2 position, Vector2 actualSize, Vector2 uvMin, Vector2 uvMax, bool flipH, bool flipV) {
+        int perimeterVerts = (cornerSegments + 1) * 4;
+        ensureCapacity(perimeterVerts * 2, perimeterVerts * 6);
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Vector2? size = null, Rectangle? sourceRect = null, Paint? tint = null, float rotation = 0f, Vector2 origin = default, SpriteEffects effects = SpriteEffects.None, float rounding = 0f, int cornerSegments = 12) {
+        float step = MathHelper.PiOver2 / cornerSegments;
+        int fringeStart = _vertexCount;
+
+        for (int c = 0; c < 4; c++) {
+            float startAngle = c * MathHelper.PiOver2;
+            for (int i = 0; i <= cornerSegments; i++) {
+                float angle = startAngle + i * step;
+                (float sin, float cos) = MathF.SinCos(angle);
+                Vector2 dir = new(cos, sin);
+                Vector2 basePos = centers[c] + dir * radius;
+                Vector2 fringePos = basePos + dir;
+
+                Vector2 worldBase, worldFringe;
+                if (hasRotation) {
+                    float rx = basePos.X - pivot.X, ry = basePos.Y - pivot.Y;
+                    worldBase = new Vector2(pivot.X + rx * rotCos - ry * rotSin, pivot.Y + rx * rotSin + ry * rotCos);
+
+                    float wdx = dir.X * rotCos - dir.Y * rotSin;
+                    float wdy = dir.X * rotSin + dir.Y * rotCos;
+                    worldFringe = new Vector2(worldBase.X + wdx, worldBase.Y + wdy);
+                }
+                else {
+                    worldBase = basePos;
+                    worldFringe = fringePos;
+                }
+
+                Vector2 getUV(Vector2 p) {
+                    float tx = (p.X - position.X) / actualSize.X;
+                    float ty = (p.Y - position.Y) / actualSize.Y;
+
+                    if (flipH) tx = 1f - tx;
+                    if (flipV) ty = 1f - ty;
+
+                    return new Vector2(
+                        float.Lerp(uvMin.X, uvMax.X, tx),
+                        float.Lerp(uvMin.Y, uvMax.Y, ty)
+                    );
+                }
+
+                _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(worldBase, 0), getUV(basePos), texIndex, paint, _currentClip.Rect, _currentClip.Params);
+
+                _vertices[_vertexCount++] = new PrimitiveVertex(new Vector3(worldFringe, 0), getUV(basePos), texIndex, paint, _currentClip.Rect, _currentClip.Params) {
+                    ColorA = Color.Transparent,
+                    ColorB = Color.Transparent
+                };
+            }
+        }
+
+        for (int k = 0; k < perimeterVerts; k++) {
+            int next = (k + 1) % perimeterVerts;
+            int v0 = fringeStart + k * 2;
+            int v1 = fringeStart + k * 2 + 1;
+            int v2 = fringeStart + next * 2;
+            int v3 = fringeStart + next * 2 + 1;
+
+            _indices[_indexCount++] = (short)v0;
+            _indices[_indexCount++] = (short)v1;
+            _indices[_indexCount++] = (short)v2;
+
+            _indices[_indexCount++] = (short)v1;
+            _indices[_indexCount++] = (short)v3;
+            _indices[_indexCount++] = (short)v2;
+        }
+    }
+    public void DrawTexture(Texture2D texture, Vector2 position, Vector2? size = null, Rectangle? sourceRect = null, Paint? tint = null, float rotation = 0f, Vector2 origin = default, SpriteEffects effects = SpriteEffects.None, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
         Vector2 actualSize = size ?? new Vector2(texture.Width, texture.Height);
         if (actualSize.X <= 0 || actualSize.Y <= 0) return;
 
@@ -779,41 +846,47 @@ public class DioBatch {
                 vertCounter++;
             }
         }
+
+        // --- Add Texture Fringe AA ---
+        if (enableAA) {
+            Vector2 aaPivot = position + origin;
+            addTextureFringe(outCenters, outR, cornerSegments, actualTint, hasRotation, rotSin, rotCos, aaPivot, texIndex, position, actualSize, uvMin, uvMax, flipH, flipV);
+        }
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Paint paint, float rounding = 0f, int cornerSegments = 12) {
-        DrawTexture(texture, position, null, null, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments);
+    public void DrawTexture(Texture2D texture, Vector2 position, Paint paint, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
+        DrawTexture(texture, position, null, null, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12) {
-        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), null, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments);
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), null, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
         Vector2 size = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
-        DrawTexture(texture, position, size, sourceRectangle, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments);
+        DrawTexture(texture, position, size, sourceRectangle, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12) {
-        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), sourceRectangle, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments);
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), sourceRectangle, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, float scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, float scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
-        DrawTexture(texture, position, srcSize * scale, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments);
+        DrawTexture(texture, position, srcSize * scale, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
-        DrawTexture(texture, position, srcSize * scale, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments);
+        DrawTexture(texture, position, srcSize * scale, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12) {
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
         Vector2 destSize = new(destinationRectangle.Width, destinationRectangle.Height);
         Vector2 scale = new(destSize.X / srcSize.X, destSize.Y / srcSize.Y);
 
-        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), destSize, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments);
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), destSize, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments, enableAA);
     }
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct PrimitiveVertex : IVertexType {
