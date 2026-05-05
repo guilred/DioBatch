@@ -111,4 +111,34 @@ public struct Paint {
         return l with { ColorA = l.ColorA * r, ColorB = l.ColorB * r };
     }
     public static implicit operator Paint(Color color) => Solid(color);
+    public readonly override string ToString() {
+        static string toHex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}{c.A:X2}";
+
+        string mode = IsLocal ? "Local" : "World";
+        string norm = isNormalized ? "|Norm" : "";
+        string pix = isPixelOffsets ? "|PxOffs" : "";
+        string flags = $"({mode}{norm}{pix})";
+
+        string easingInfo = Easing != EasingType.Linear
+            ? $", Ease: {Easing}({EasingPower:F1})" : "";
+
+        string offsetInfo = (OffsetA != 0f || OffsetB != 1f)
+            ? $", Offs: [{OffsetA:F2}, {OffsetB:F2}]" : "";
+
+        return Type switch {
+            PaintType.Solid =>
+                $"[Paint: Solid {toHex(ColorA)} {flags}]",
+
+            PaintType.Linear =>
+                $"[Paint: Linear {toHex(ColorA)}->{toHex(ColorB)}, {Start}->{End}{easingInfo}{offsetInfo} {flags}]",
+
+            PaintType.Radial =>
+                $"[Paint: Radial {toHex(ColorA)}->{toHex(ColorB)}, Center:{Start} Edge:{End}{easingInfo}{offsetInfo} {flags}]",
+
+            PaintType.Texture =>
+                $"[Paint: Texture {Start}->{End} {flags}]",
+
+            _ => $"[Paint: {Type} {flags}]"
+        };
+    }
 }
