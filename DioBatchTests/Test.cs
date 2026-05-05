@@ -159,7 +159,7 @@ public class Test : Game {
             //_dioBatch.DrawCircle(pos + size / 2, ps, ps2, size.X / 2, 0);
             //_dioBatch.DrawArc(pos + size / 2, ps, ps2, size.X / 2 - 80, 80, 0, float.Pi * 1.96f, 0);
             //_dioBatch.DrawLine(pos, pos + size, ps, ps2, 50, 10);
-            _dioBatch.DrawTexture(_dg, pos, size, null, ps, rounding: 40);
+            _dioBatch.DrawTexture(_dg, pos, size, null, ps * 0.1f, rounding: 40);
 
             _dioBatch.End();
         }

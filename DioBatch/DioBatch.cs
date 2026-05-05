@@ -301,8 +301,8 @@ public class DioBatch {
         var padding = Vector2.One * borderThickness;
         fillPaint = transformPaint(fillPaint, position + padding + origin, -origin, rotation, size - padding * 2);
 
-        bool hasFill = borderThickness < minHalf && !fillPaint.IsTrspt();
-        bool hasBorder = borderThickness > 0f && !borderPaint.IsTrspt();
+        bool hasFill = borderThickness < minHalf && !fillPaint.IsTransparent();
+        bool hasBorder = borderThickness > 0f && !borderPaint.IsTransparent();
 
         if (!hasFill && !hasBorder) return;
 
@@ -516,8 +516,8 @@ public class DioBatch {
         float borderThick = Math.Min(borderThickness, halfThick);
         float fillHalfThick = Math.Max(0f, halfThick - borderThick);
 
-        bool hasBorder = borderThick > 0f && !borderPaint.IsTrspt();
-        bool hasFill = fillHalfThick > 0f && !fillPaint.IsTrspt();
+        bool hasBorder = borderThick > 0f && !borderPaint.IsTransparent();
+        bool hasFill = fillHalfThick > 0f && !fillPaint.IsTransparent();
 
         if (!hasBorder && !hasFill) return;
 
@@ -604,8 +604,8 @@ public class DioBatch {
     public void DrawCircle(Vector2 center, Paint fillPaint, Paint borderPaint, float radius, float borderThickness, int segments = 48, bool enableAA = true) {
         float innerRadius = Math.Max(0, radius - borderThickness);
 
-        bool hasBorder = borderThickness > 0 && !borderPaint.IsTrspt();
-        bool hasFill = innerRadius > 0 && !fillPaint.IsTrspt();
+        bool hasBorder = borderThickness > 0 && !borderPaint.IsTransparent();
+        bool hasFill = innerRadius > 0 && !fillPaint.IsTransparent();
 
         Vector2 size = Vector2.One * radius * 2;
         if (hasBorder) {
@@ -758,7 +758,7 @@ public class DioBatch {
         if (actualSize.X <= 0 || actualSize.Y <= 0) return;
 
         Paint actualTint = tint ?? Paint.Solid(Color.White);
-        if (actualTint.IsTrspt()) return;
+        if (actualTint.IsTransparent()) return;
 
         actualTint = transformPaint(actualTint, position + origin, -origin, rotation, size);
 
