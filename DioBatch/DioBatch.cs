@@ -290,7 +290,7 @@ public class DioBatch {
             _indices[_indexCount++] = (short)v2;
         }
     }
-    public void DrawRectangle(Vector2 position, Vector2 size, Paint fillPaint, Paint borderPaint, float borderThickness, float rounding, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true) {
+    public void DrawRectangle(Vector2 position, Vector2 size, Paint fillPaint, Paint borderPaint, float borderThickness, float rounding, float rotation = 0f, Vector2 origin = default, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
         if (size.X <= 0 || size.Y <= 0) return;
 
         float minHalf = MathF.Min(size.X, size.Y) * 0.5f;
@@ -306,7 +306,10 @@ public class DioBatch {
 
         if (!hasFill && !hasBorder) return;
 
-        cornerSegments = rounding > 0f ? Math.Max(1, cornerSegments) : 1;
+        var cornerSegments = rounding > 0 ? computeSegments(rounding, MathHelper.PiOver2, cornerQuality) : 1;
+        if (rounding > 200) {
+            Console.WriteLine(cornerSegments * 4 + " hi " +rounding);
+        }
         int perimVerts = (cornerSegments + 1) * 4;
         float arcStep = MathHelper.PiOver2 / cornerSegments;
 
@@ -412,22 +415,22 @@ public class DioBatch {
         }
     }
 
-    public void DrawRectangle(Vector2 position, Vector2 size, Color fillColor, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
-        => DrawRectangle(position, size, Paint.Solid(fillColor), Paint.Solid(borderColor), borderThickness, rounding, rotation, origin, cornerSegments, enableAA);
+    public void DrawRectangle(Vector2 position, Vector2 size, Color fillColor, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true)
+        => DrawRectangle(position, size, Paint.Solid(fillColor), Paint.Solid(borderColor), borderThickness, rounding, rotation, origin, cornerQuality, enableAA);
 
-    public void FillRectangle(Vector2 position, Vector2 size, Paint fillPaint, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
-        => DrawRectangle(position, size, fillPaint, default, 0, rounding, rotation, origin, cornerSegments, enableAA);
+    public void FillRectangle(Vector2 position, Vector2 size, Paint fillPaint, float rounding = 0f, float rotation = 0f, Vector2 origin = default, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true)
+        => DrawRectangle(position, size, fillPaint, default, 0, rounding, rotation, origin, cornerQuality, enableAA);
 
-    public void FillRectangle(Vector2 position, Vector2 size, Color fillColor, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
-        => FillRectangle(position, size, Paint.Solid(fillColor), rounding, rotation, origin, cornerSegments, enableAA);
+    public void FillRectangle(Vector2 position, Vector2 size, Color fillColor, float rounding = 0f, float rotation = 0f, Vector2 origin = default, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true)
+        => FillRectangle(position, size, Paint.Solid(fillColor), rounding, rotation, origin, cornerQuality, enableAA);
 
-    public void BorderRectangle(Vector2 position, Vector2 size, Paint borderPaint, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
-        => DrawRectangle(position, size, default, borderPaint, borderThickness, rounding, rotation, origin, cornerSegments, enableAA);
+    public void BorderRectangle(Vector2 position, Vector2 size, Paint borderPaint, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true)
+        => DrawRectangle(position, size, default, borderPaint, borderThickness, rounding, rotation, origin, cornerQuality, enableAA);
 
-    public void BorderRectangle(Vector2 position, Vector2 size, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, int cornerSegments = 12, bool enableAA = true)
-        => BorderRectangle(position, size, Paint.Solid(borderColor), borderThickness, rounding, rotation, origin, cornerSegments, enableAA);
+    public void BorderRectangle(Vector2 position, Vector2 size, Color borderColor, float borderThickness, float rounding = 0f, float rotation = 0f, Vector2 origin = default, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true)
+        => BorderRectangle(position, size, Paint.Solid(borderColor), borderThickness, rounding, rotation, origin, cornerQuality, enableAA);
 
-    public void DrawLine(Vector2 start, Vector2 end, Paint fillPaint, Paint borderPaint, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true) {
+    public void DrawLine(Vector2 start, Vector2 end, Paint fillPaint, Paint borderPaint, float thickness, float borderThickness, ArcQuality capQuality = ArcQuality.Normal, bool enableAA = true) {
         if (thickness <= 0) return;
 
         Vector2 dir = end - start;
@@ -444,23 +447,23 @@ public class DioBatch {
         if (!borderPaint.isNormalized)
             borderPaint = transformPaint(borderPaint, origin, Vector2.Zero, 0);
 
-        DrawRectangle(position, size, fillPaint, borderPaint, borderThickness, rounding: thickness * 0.5f, angle, origin, capSegments, enableAA);
+        DrawRectangle(position, size, fillPaint, borderPaint, borderThickness, rounding: thickness * 0.5f, angle, origin, capQuality, enableAA);
     }
 
-    public void DrawLine(Vector2 start, Vector2 end, Color color, Color borderColor, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true)
-        => DrawLine(start, end, Paint.Solid(color), Paint.Solid(borderColor), thickness, borderThickness, capSegments, enableAA);
+    public void DrawLine(Vector2 start, Vector2 end, Color color, Color borderColor, float thickness, float borderThickness, ArcQuality capQuality = ArcQuality.Normal, bool enableAA = true)
+        => DrawLine(start, end, Paint.Solid(color), Paint.Solid(borderColor), thickness, borderThickness, capQuality, enableAA);
 
-    public void FillLine(Vector2 start, Vector2 end, Paint paint, float thickness, int capSegments = 8, bool enableAA = true)
-        => DrawLine(start, end, paint, default, thickness, 0f, capSegments, enableAA);
+    public void FillLine(Vector2 start, Vector2 end, Paint paint, float thickness, ArcQuality capQuality = ArcQuality.Normal, bool enableAA = true)
+        => DrawLine(start, end, paint, default, thickness, 0f, capQuality, enableAA);
 
-    public void FillLine(Vector2 start, Vector2 end, Color color, float thickness, int capSegments = 8, bool enableAA = true)
-        => FillLine(start, end, Paint.Solid(color), thickness, capSegments, enableAA);
+    public void FillLine(Vector2 start, Vector2 end, Color color, float thickness, ArcQuality capQuality = ArcQuality.Normal, bool enableAA = true)
+        => FillLine(start, end, Paint.Solid(color), thickness, capQuality, enableAA);
 
-    public void BorderLine(Vector2 start, Vector2 end, Paint borderPaint, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true)
-        => DrawLine(start, end, default, borderPaint, thickness, borderThickness, capSegments, enableAA);
+    public void BorderLine(Vector2 start, Vector2 end, Paint borderPaint, float thickness, float borderThickness, ArcQuality capQuality = ArcQuality.Normal, bool enableAA = true)
+        => DrawLine(start, end, default, borderPaint, thickness, borderThickness, capQuality, enableAA);
 
-    public void BorderLine(Vector2 start, Vector2 end, Color borderColor, float thickness, float borderThickness, int capSegments = 8, bool enableAA = true)
-        => BorderLine(start, end, Paint.Solid(borderColor), thickness, borderThickness, capSegments, enableAA);
+    public void BorderLine(Vector2 start, Vector2 end, Color borderColor, float thickness, float borderThickness, ArcQuality capQuality = ArcQuality.Normal, bool enableAA = true)
+        => BorderLine(start, end, Paint.Solid(borderColor), thickness, borderThickness, capQuality, enableAA);
 
     private void addCircleFringe(Vector2 center, float radius, float startAngle, float endAngle,
         Paint paint, int segments, bool outer) {
@@ -500,13 +503,14 @@ public class DioBatch {
             _indices[_indexCount++] = (short)v2;
         }
     }
-    public void DrawArc(Vector2 center, Paint fillPaint, Paint borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true) {
+    public void DrawArc(Vector2 center, Paint fillPaint, Paint borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, ArcQuality quality = ArcQuality.Normal, bool enableAA = true) {
         static float normalizeAngle(float angle) => ((angle % float.Tau) + float.Tau) % float.Tau;
 
         startAngle = normalizeAngle(startAngle);
         endAngle = normalizeAngle(endAngle);
         if (endAngle <= startAngle) endAngle += float.Tau;
 
+        var segments = computeSegments(innerRadius + outerRadius, endAngle - startAngle, quality);
         if (outerRadius <= 0f || segments < 3) return;
 
         float outerEdge = innerRadius + outerRadius;
@@ -586,22 +590,23 @@ public class DioBatch {
         }
     }
 
-    public void DrawArc(Vector2 center, Color fillColor, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true)
-        => DrawArc(center, Paint.Solid(fillColor), Paint.Solid(borderColor), innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments, enableAA);
+    public void DrawArc(Vector2 center, Color fillColor, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => DrawArc(center, Paint.Solid(fillColor), Paint.Solid(borderColor), innerRadius, outerRadius, startAngle, endAngle, borderThickness, quality, enableAA);
 
-    public void FillArc(Vector2 center, Paint fillPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, int segments = 48, bool enableAA = true)
-        => DrawArc(center, fillPaint, default, innerRadius, outerRadius, startAngle, endAngle, 0f, segments, enableAA);
+    public void FillArc(Vector2 center, Paint fillPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => DrawArc(center, fillPaint, default, innerRadius, outerRadius, startAngle, endAngle, 0f, quality, enableAA);
 
-    public void FillArc(Vector2 center, Color fillColor, float innerRadius, float outerRadius, float startAngle, float endAngle, int segments = 48, bool enableAA = true)
-        => FillArc(center, Paint.Solid(fillColor), innerRadius, outerRadius, startAngle, endAngle, segments, enableAA);
+    public void FillArc(Vector2 center, Color fillColor, float innerRadius, float outerRadius, float startAngle, float endAngle, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => FillArc(center, Paint.Solid(fillColor), innerRadius, outerRadius, startAngle, endAngle, quality, enableAA);
 
-    public void BorderArc(Vector2 center, Paint borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true)
-        => DrawArc(center, default, borderPaint, innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments, enableAA);
+    public void BorderArc(Vector2 center, Paint borderPaint, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => DrawArc(center, default, borderPaint, innerRadius, outerRadius, startAngle, endAngle, borderThickness, quality, enableAA);
 
-    public void BorderArc(Vector2 center, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, int segments = 48, bool enableAA = true)
-        => BorderArc(center, Paint.Solid(borderColor), innerRadius, outerRadius, startAngle, endAngle, borderThickness, segments, enableAA);
+    public void BorderArc(Vector2 center, Color borderColor, float innerRadius, float outerRadius, float startAngle, float endAngle, float borderThickness, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => BorderArc(center, Paint.Solid(borderColor), innerRadius, outerRadius, startAngle, endAngle, borderThickness, quality, enableAA);
 
-    public void DrawCircle(Vector2 center, Paint fillPaint, Paint borderPaint, float radius, float borderThickness, int segments = 48, bool enableAA = true) {
+    public void DrawCircle(Vector2 center, Paint fillPaint, Paint borderPaint, float radius, float borderThickness, ArcQuality quality = ArcQuality.Normal, bool enableAA = true) {
+        var segments = computeSegments(radius, quality: quality);
         float innerRadius = Math.Max(0, radius - borderThickness);
 
         bool hasBorder = borderThickness > 0 && !borderPaint.IsTransparent();
@@ -632,20 +637,20 @@ public class DioBatch {
         }
     }
 
-    public void DrawCircle(Vector2 center, Color fillColor, Color borderColor, float radius, float borderThickness, int segments = 48, bool enableAA = true)
-        => DrawCircle(center, Paint.Solid(fillColor), Paint.Solid(borderColor), radius, borderThickness, segments, enableAA);
+    public void DrawCircle(Vector2 center, Color fillColor, Color borderColor, float radius, float borderThickness, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => DrawCircle(center, Paint.Solid(fillColor), Paint.Solid(borderColor), radius, borderThickness, quality, enableAA);
 
-    public void FillCircle(Vector2 center, Paint fillPaint, float radius, int segments = 48, bool enableAA = true)
-        => DrawCircle(center, fillPaint, default, radius, 0f, segments, enableAA);
+    public void FillCircle(Vector2 center, Paint fillPaint, float radius, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => DrawCircle(center, fillPaint, default, radius, 0f, quality, enableAA);
 
-    public void FillCircle(Vector2 center, Color fillColor, float radius, int segments = 48, bool enableAA = true)
-        => FillCircle(center, Paint.Solid(fillColor), radius, segments, enableAA);
+    public void FillCircle(Vector2 center, Color fillColor, float radius, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => FillCircle(center, Paint.Solid(fillColor), radius, quality, enableAA);
 
-    public void BorderCircle(Vector2 center, Paint borderPaint, float radius, float borderThickness, int segments = 48, bool enableAA = true)
-        => DrawCircle(center, default, borderPaint, radius, borderThickness, segments, enableAA);
+    public void BorderCircle(Vector2 center, Paint borderPaint, float radius, float borderThickness, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => DrawCircle(center, default, borderPaint, radius, borderThickness, quality, enableAA);
 
-    public void BorderCircle(Vector2 center, Color borderColor, float radius, float borderThickness, int segments = 48, bool enableAA = true)
-        => BorderCircle(center, Paint.Solid(borderColor), radius, borderThickness, segments, enableAA);
+    public void BorderCircle(Vector2 center, Color borderColor, float radius, float borderThickness, ArcQuality quality = ArcQuality.Normal, bool enableAA = true)
+        => BorderCircle(center, Paint.Solid(borderColor), radius, borderThickness, quality, enableAA);
     private static Paint transformPaint(Paint paint, Vector2 center, Vector2 offset, float rotation, Vector2? size = null) {
         if (paint.isNormalized && size.HasValue) {
             var r = size.Value;
@@ -753,7 +758,7 @@ public class DioBatch {
             _indices[_indexCount++] = (short)v2;
         }
     }
-    public void DrawTexture(Texture2D texture, Vector2 position, Vector2? size = null, Rectangle? sourceRect = null, Paint? tint = null, float rotation = 0f, Vector2 origin = default, SpriteEffects effects = SpriteEffects.None, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Vector2? size = null, Rectangle? sourceRect = null, Paint? tint = null, float rotation = 0f, Vector2 origin = default, SpriteEffects effects = SpriteEffects.None, float rounding = 0f, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
         Vector2 actualSize = size ?? new Vector2(texture.Width, texture.Height);
         if (actualSize.X <= 0 || actualSize.Y <= 0) return;
 
@@ -764,7 +769,8 @@ public class DioBatch {
 
         float minHalf = Math.Min(actualSize.X, actualSize.Y) * 0.5f;
         rounding = Math.Clamp(rounding, 0, minHalf);
-        cornerSegments = rounding > 0 ? Math.Max(1, cornerSegments) : 1;
+
+        var cornerSegments = rounding > 0 ? computeSegments(rounding, MathHelper.PiOver2, cornerQuality) : 1;
 
         int perimeterVerts = (cornerSegments + 1) * 4;
         ensureCapacity(perimeterVerts + 1, perimeterVerts * 3);
@@ -854,39 +860,39 @@ public class DioBatch {
         }
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Paint paint, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
-        DrawTexture(texture, position, null, null, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments, enableAA);
+    public void DrawTexture(Texture2D texture, Vector2 position, Paint paint, float rounding = 0f, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
+        DrawTexture(texture, position, null, null, paint, 0f, default, SpriteEffects.None, rounding, cornerQuality, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
-        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), null, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments, enableAA);
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Paint paint, float rounding = 0f, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), null, paint, 0f, default, SpriteEffects.None, rounding, cornerQuality, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rounding = 0f, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
         Vector2 size = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
-        DrawTexture(texture, position, size, sourceRectangle, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments, enableAA);
+        DrawTexture(texture, position, size, sourceRectangle, paint, 0f, default, SpriteEffects.None, rounding, cornerQuality, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Paint paint, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
-        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), sourceRectangle, paint, 0f, default, SpriteEffects.None, rounding, cornerSegments, enableAA);
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Paint paint, float rounding = 0f, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), new Vector2(destinationRectangle.Width, destinationRectangle.Height), sourceRectangle, paint, 0f, default, SpriteEffects.None, rounding, cornerQuality, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, float scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, float scale, SpriteEffects effects, float rounding = 0f, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
-        DrawTexture(texture, position, srcSize * scale, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments, enableAA);
+        DrawTexture(texture, position, srcSize * scale, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerQuality, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
+    public void DrawTexture(Texture2D texture, Vector2 position, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float rounding = 0f, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
-        DrawTexture(texture, position, srcSize * scale, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments, enableAA);
+        DrawTexture(texture, position, srcSize * scale, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerQuality, enableAA);
     }
 
-    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, SpriteEffects effects, float rounding = 0f, int cornerSegments = 12, bool enableAA = true) {
+    public void DrawTexture(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Paint paint, float rotation, Vector2 origin, SpriteEffects effects, float rounding = 0f, ArcQuality cornerQuality = ArcQuality.Normal, bool enableAA = true) {
         Vector2 srcSize = sourceRectangle.HasValue ? new Vector2(sourceRectangle.Value.Width, sourceRectangle.Value.Height) : new Vector2(texture.Width, texture.Height);
         Vector2 destSize = new(destinationRectangle.Width, destinationRectangle.Height);
         Vector2 scale = new(destSize.X / srcSize.X, destSize.Y / srcSize.Y);
 
-        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), destSize, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerSegments, enableAA);
+        DrawTexture(texture, new Vector2(destinationRectangle.X, destinationRectangle.Y), destSize, sourceRectangle, paint, rotation, origin * scale, effects, rounding, cornerQuality, enableAA);
     }
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct PrimitiveVertex : IVertexType {
@@ -938,4 +944,21 @@ public class DioBatch {
 
         readonly VertexDeclaration IVertexType.VertexDeclaration => VertexDeclaration;
     }
+    private static float qualityToError(ArcQuality quality) => quality switch {
+        ArcQuality.Draft => 1.0f,
+        ArcQuality.Normal => 0.125f,
+        ArcQuality.HiDef => 0.0625f,
+        _ => 0.5f
+    };
+
+    public static int computeSegments(float pixelRadius, float angleSpanRadians = MathF.Tau, ArcQuality quality = ArcQuality.Normal, int minSegments = 3) {
+        if (pixelRadius <= 0f) return minSegments;
+
+        float clampedError = float.Min(qualityToError(quality), pixelRadius);
+        int segments = (int)float.Ceiling(float.Pi / float.Acos(1.0f - clampedError / pixelRadius) * (float.Abs(angleSpanRadians) / float.Tau));
+
+        return Math.Max(segments, minSegments);
+    }
 }
+
+public enum ArcQuality { Draft, Normal, HiDef }

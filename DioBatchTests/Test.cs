@@ -152,8 +152,8 @@ public class Test : Game {
             var pos = new Vector2(200, 200);
             var size = new Vector2(500, 400);
 
-            var ps = Paint.LinearNorm(Vector2.Zero, Vector2.UnitX, Color.Blue, Color.Magenta) * 1;
-            var ps2 = Paint.LinearNorm(Vector2.UnitY * 0.5f, Vector2.UnitY * 0.5f + Vector2.UnitX, Color.Green, Color.Red).SetOffsets(0.5f, 0.5f) * 1;
+            var ps = Paint.Linear(Vector2.Zero, Vector2.UnitX, Color.Blue, Color.Magenta) * 1;
+            var ps2 = Paint.Linear(Vector2.UnitY * 0.5f, Vector2.UnitY * 0.5f + Vector2.UnitX, Color.Green, Color.Red).SetOffsets(0.5f, 0.5f) * 1;
 
             //_dioBatch.DrawRectangle(pos, size, ps, ps2, 10, 40);
             //_dioBatch.DrawCircle(pos + size / 2, ps, ps2, size.X / 2, 0);
