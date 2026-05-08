@@ -310,9 +310,6 @@ public class GuilBatch {
         if (!hasFill && !hasBorder) return;
 
         var cornerSegments = rounding > 0 ? computeSegments(rounding, MathHelper.PiOver2, cornerQuality) : 1;
-        if (rounding > 200) {
-            Console.WriteLine(cornerSegments * 4 + " hi " +rounding);
-        }
         int perimVerts = (cornerSegments + 1) * 4;
         float arcStep = MathHelper.PiOver2 / cornerSegments;
 
