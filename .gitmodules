@@ -1,3 +1,6 @@
 [submodule "RectangleF"]
 	path = RectangleF
 	url = https://github.com/guilred/RectangleF.git
+[submodule "shapes/RectangleF"]
+	path = shapes/RectangleF
+	url = https://github.com/guilred/RectangleF.git

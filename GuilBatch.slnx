@@ -1,5 +1,5 @@
 <Solution>
-  <Project Path="../RectangleF/RectangleF.csproj" />
   <Project Path="GuilBatch/GuilBatch.csproj" />
   <Project Path="GuilBatchTests/GuilBatchTests.csproj" />
+  <Project Path="shapes/RectangleF/RectangleF.csproj" />
 </Solution>

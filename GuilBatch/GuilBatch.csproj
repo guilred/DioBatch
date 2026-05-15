@@ -7,10 +7,6 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Compile Remove="RectangleF.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
 	</ItemGroup>
 
@@ -25,7 +21,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\..\RectangleF\RectangleF.csproj" />
+	  <ProjectReference Include="..\shapes\RectangleF\RectangleF.csproj" />
 	</ItemGroup>
 
 	<Target Name="CompileShaders" BeforeTargets="BeforeBuild" Inputs="guilbatch-effect.fx" Outputs="guilbatch-effect.mgfx">
